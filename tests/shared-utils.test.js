@@ -169,6 +169,28 @@ test('parseAiResumeResponse reports missing required jdAnalysis schema fields', 
   assert.strictEqual(result.raw, raw);
 });
 
+test('parseAiResumeResponse reports invalid jdAnalysis scalar fields', () => {
+  const raw = JSON.stringify({
+    jdAnalysis: {
+      isLikelyJobDescription: true,
+      confidence: 'banana',
+      jobTitle: [],
+      coreResponsibilities: [],
+      requiredSkills: [],
+      preferredSkills: [],
+      softSkills: [],
+      keywords: [],
+    },
+    aspirationalResumeMarkdown: '# A',
+    groundedResumeMarkdown: '# G',
+  });
+  const result = parseAiResumeResponse(raw);
+
+  assert.strictEqual(result.ok, false);
+  assert.match(result.error, /jdAnalysis\.confidence/);
+  assert.match(result.error, /jdAnalysis\.jobTitle/);
+});
+
 test('normalizeResumeWarnings adds a visible warning for non-JD pages', () => {
   const warnings = normalizeResumeWarnings([], { isLikelyJobDescription: false }, ['页面内容超过 12000 字符']);
 

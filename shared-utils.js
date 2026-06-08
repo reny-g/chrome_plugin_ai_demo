@@ -155,6 +155,12 @@
       if ('isLikelyJobDescription' in jdAnalysis && typeof jdAnalysis.isLikelyJobDescription !== 'boolean') {
         missing.push('jdAnalysis.isLikelyJobDescription');
       }
+      if ('confidence' in jdAnalysis && !['high', 'medium', 'low'].includes(jdAnalysis.confidence)) {
+        missing.push('jdAnalysis.confidence');
+      }
+      if ('jobTitle' in jdAnalysis && typeof jdAnalysis.jobTitle !== 'string') {
+        missing.push('jdAnalysis.jobTitle');
+      }
     }
 
     if (missing.length) {
