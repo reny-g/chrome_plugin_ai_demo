@@ -2,6 +2,10 @@
 
 const $ = (id) => document.getElementById(id);
 const els = {
+  summaryModeTab: $('summary-mode-tab'),
+  resumeModeTab: $('resume-mode-tab'),
+  summaryModePanel: $('summary-mode-panel'),
+  resumeModePanel: $('resume-mode-panel'),
   provider: $('provider-select'),
   btn: $('summarize-btn'),
   status: $('status'),
@@ -16,12 +20,27 @@ const els = {
   copySourceBtn: $('copy-source-btn'),
   providerTag: $('provider-tag'),
   options: $('open-options'),
+  resumeStatusTag: $('resume-status-tag'),
+  resumeMeta: $('resume-meta'),
+  resumeFileInput: $('resume-file-input'),
+  uploadResumeBtn: $('upload-resume-btn'),
+  viewResumeBtn: $('view-resume-btn'),
+  clearResumeBtn: $('clear-resume-btn'),
+  resumePreview: $('resume-preview'),
+  optimizeResumeBtn: $('optimize-resume-btn'),
+  resumeResult: $('resume-result-area'),
 };
+
+const resumeUtils = window.ResumeOptimizerUtils;
+let savedResume = null;
 
 // 初始化：从 storage 读默认 provider
 chrome.storage.local.get({ provider: 'openai' }).then((s) => {
   els.provider.value = s.provider;
 });
+
+els.summaryModeTab.addEventListener('click', () => setMode('summary'));
+els.resumeModeTab.addEventListener('click', () => setMode('resume'));
 
 els.provider.addEventListener('change', () => {
   chrome.storage.local.set({ provider: els.provider.value });
@@ -30,6 +49,22 @@ els.provider.addEventListener('change', () => {
 els.options.addEventListener('click', () => chrome.runtime.openOptionsPage());
 
 els.btn.addEventListener('click', runSummarize);
+
+els.uploadResumeBtn.addEventListener('click', () => els.resumeFileInput.click());
+
+els.resumeFileInput.addEventListener('change', async () => {
+  const [file] = els.resumeFileInput.files || [];
+  if (file) await handleResumeUpload(file);
+  els.resumeFileInput.value = '';
+});
+
+els.viewResumeBtn.addEventListener('click', () => {
+  if (!savedResume?.markdown) return;
+  els.resumePreview.textContent = savedResume.markdown;
+  els.resumePreview.classList.toggle('hidden');
+});
+
+els.clearResumeBtn.addEventListener('click', clearSavedResume);
 
 els.copyBtn.addEventListener('click', async () => {
   const text = els.summary.innerText;
@@ -54,6 +89,71 @@ els.copySourceBtn.addEventListener('click', async () => {
     showStatus('复制失败：' + e.message, 'error');
   }
 });
+
+setMode('summary');
+loadSavedResume();
+
+function setMode(mode) {
+  const isResume = mode === 'resume';
+  els.summaryModeTab.classList.toggle('active', !isResume);
+  els.resumeModeTab.classList.toggle('active', isResume);
+  els.summaryModeTab.setAttribute('aria-selected', String(!isResume));
+  els.resumeModeTab.setAttribute('aria-selected', String(isResume));
+  els.summaryModePanel.classList.toggle('hidden', isResume);
+  els.resumeModePanel.classList.toggle('hidden', !isResume);
+}
+
+async function loadSavedResume() {
+  const stored = await chrome.storage.local.get({ [resumeUtils.RESUME_STORAGE_KEY]: null });
+  savedResume = stored[resumeUtils.RESUME_STORAGE_KEY];
+  renderResumeState();
+}
+
+function renderResumeState() {
+  const hasResume = Boolean(savedResume?.markdown);
+  els.resumeStatusTag.textContent = hasResume ? '已保存' : '未上传';
+  els.resumeMeta.textContent = hasResume
+    ? `${savedResume.fileName} · ${savedResume.length.toLocaleString()} 字符 · ${formatResumeTime(savedResume.updatedAt)}`
+    : '上传一份 Markdown 简历后，可以根据当前网页 JD 生成优化版本。';
+  els.viewResumeBtn.disabled = !hasResume;
+  els.clearResumeBtn.disabled = !hasResume;
+  els.optimizeResumeBtn.disabled = !hasResume;
+  if (!hasResume) {
+    els.resumePreview.classList.add('hidden');
+    els.resumePreview.textContent = '';
+  }
+}
+
+async function handleResumeUpload(file) {
+  const markdown = await file.text();
+  const validation = resumeUtils.validateMarkdownFileMeta(file, markdown);
+  if (!validation.ok) {
+    showStatus(validation.error, 'error');
+    return;
+  }
+
+  savedResume = resumeUtils.buildResumeRecord(file.name, markdown);
+  await chrome.storage.local.set({ [resumeUtils.RESUME_STORAGE_KEY]: savedResume });
+  els.resumePreview.classList.add('hidden');
+  els.resumePreview.textContent = '';
+  renderResumeState();
+  showStatus('简历已保存到浏览器本地。', 'success');
+}
+
+async function clearSavedResume() {
+  await chrome.storage.local.remove(resumeUtils.RESUME_STORAGE_KEY);
+  savedResume = null;
+  renderResumeState();
+  els.resumeResult.classList.add('hidden');
+  els.resumeResult.innerHTML = '';
+  showStatus('已清除本地简历。', 'success');
+}
+
+function formatResumeTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '时间未知';
+  return date.toLocaleString();
+}
 
 async function runSummarize() {
   els.btn.disabled = true;
