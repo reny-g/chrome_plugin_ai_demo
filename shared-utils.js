@@ -69,6 +69,10 @@
       return { ok: false, error: `Invalid JSON response: ${error.message}`, raw };
     }
 
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      return { ok: false, error: 'AI response must be a JSON object.', raw };
+    }
+
     const missing = [];
     if (typeof data.aspirationalResumeMarkdown !== 'string' || !data.aspirationalResumeMarkdown.trim()) {
       missing.push('aspirationalResumeMarkdown');

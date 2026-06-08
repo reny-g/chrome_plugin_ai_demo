@@ -98,6 +98,18 @@ test('parseAiResumeResponse reports missing required resume fields', () => {
   assert.strictEqual(result.raw, raw);
 });
 
+test('parseAiResumeResponse reports non-object JSON responses without throwing', () => {
+  const raw = 'null';
+
+  assert.doesNotThrow(() => {
+    const result = parseAiResumeResponse(raw);
+
+    assert.strictEqual(result.ok, false);
+    assert.match(result.error, /object/i);
+    assert.strictEqual(result.raw, raw);
+  });
+});
+
 test('buildAnalysisMarkdown creates a downloadable Markdown report containing title, skills, warnings', () => {
   const markdown = buildAnalysisMarkdown({
     jdAnalysis: {
