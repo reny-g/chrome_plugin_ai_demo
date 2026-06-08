@@ -157,7 +157,7 @@ async function handleResumeOptimization() {
     aspirationalResumeMarkdown: parsed.aspirationalResumeMarkdown,
     groundedResumeMarkdown: parsed.groundedResumeMarkdown,
     gapSuggestions: parsed.gapSuggestions,
-    warnings: [...parsed.warnings, ...truncationWarnings],
+    warnings: utils.normalizeResumeWarnings(parsed.warnings, parsed.jdAnalysis, truncationWarnings),
   };
 }
 

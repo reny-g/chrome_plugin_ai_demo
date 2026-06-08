@@ -7,6 +7,7 @@ const {
   buildDownloadFileName,
   buildResumeOptimizationMessages,
   parseAiResumeResponse,
+  normalizeResumeWarnings,
   buildAnalysisMarkdown,
 } = require('../shared-utils');
 
@@ -52,14 +53,15 @@ test('buildResumeRecord stores markdown, fileName, updatedAt, length', () => {
 });
 
 test('sanitizeBaseName removes unsafe filename characters and falls back to resume', () => {
-  assert.strictEqual(sanitizeBaseName('my<bad>:resume?.md'), 'mybadresume');
+  assert.strictEqual(sanitizeBaseName('my<bad>:resume?.md'), 'my-bad-resume');
+  assert.strictEqual(sanitizeBaseName('my/resume:java*.md'), 'my-resume-java');
   assert.strictEqual(sanitizeBaseName('////.md'), 'resume');
 });
 
 test('buildDownloadFileName includes sanitized base, kind, and date', () => {
   const fileName = buildDownloadFileName('my<bad>:resume?.md', 'analysis', new Date('2026-06-08T12:34:56Z'));
 
-  assert.strictEqual(fileName, 'mybadresume-analysis-2026-06-08.md');
+  assert.strictEqual(fileName, 'my-bad-resume-analysis-2026-06-08.md');
 });
 
 test('buildResumeOptimizationMessages creates system and user prompts for JD resume optimization', () => {
@@ -92,7 +94,16 @@ test('buildResumeOptimizationMessages creates system and user prompts for JD res
 
 test('parseAiResumeResponse parses direct JSON', () => {
   const result = parseAiResumeResponse(JSON.stringify({
-    jdAnalysis: { title: '前端工程师', skills: ['React'] },
+    jdAnalysis: {
+      isLikelyJobDescription: true,
+      confidence: 'high',
+      jobTitle: '前端工程师',
+      coreResponsibilities: ['开发前端功能'],
+      requiredSkills: ['React'],
+      preferredSkills: ['Chrome Extension'],
+      softSkills: ['沟通协作'],
+      keywords: ['MV3'],
+    },
     aspirationalResumeMarkdown: '# 冲刺版',
     groundedResumeMarkdown: '# 稳健版',
     gapSuggestions: ['补充项目指标'],
@@ -101,7 +112,16 @@ test('parseAiResumeResponse parses direct JSON', () => {
 
   assert.deepStrictEqual(result, {
     ok: true,
-    jdAnalysis: { title: '前端工程师', skills: ['React'] },
+    jdAnalysis: {
+      isLikelyJobDescription: true,
+      confidence: 'high',
+      jobTitle: '前端工程师',
+      coreResponsibilities: ['开发前端功能'],
+      requiredSkills: ['React'],
+      preferredSkills: ['Chrome Extension'],
+      softSkills: ['沟通协作'],
+      keywords: ['MV3'],
+    },
     aspirationalResumeMarkdown: '# 冲刺版',
     groundedResumeMarkdown: '# 稳健版',
     gapSuggestions: ['补充项目指标'],
@@ -110,16 +130,16 @@ test('parseAiResumeResponse parses direct JSON', () => {
 });
 
 test('parseAiResumeResponse parses fenced JSON', () => {
-  const result = parseAiResumeResponse('```json\n{"jdAnalysis":{"title":"后端工程师"},"aspirationalResumeMarkdown":"# A","groundedResumeMarkdown":"# G"}\n```');
+  const result = parseAiResumeResponse('```json\n{"jdAnalysis":{"isLikelyJobDescription":true,"confidence":"medium","jobTitle":"后端工程师","coreResponsibilities":[],"requiredSkills":[],"preferredSkills":[],"softSkills":[],"keywords":[]},"aspirationalResumeMarkdown":"# A","groundedResumeMarkdown":"# G"}\n```');
 
   assert.strictEqual(result.ok, true);
-  assert.strictEqual(result.jdAnalysis.title, '后端工程师');
+  assert.strictEqual(result.jdAnalysis.jobTitle, '后端工程师');
   assert.deepStrictEqual(result.gapSuggestions, []);
   assert.deepStrictEqual(result.warnings, []);
 });
 
 test('parseAiResumeResponse reports missing required resume fields', () => {
-  const raw = '{"jdAnalysis":{"title":"数据分析师"},"aspirationalResumeMarkdown":"# A"}';
+  const raw = '{"jdAnalysis":{"isLikelyJobDescription":true,"confidence":"high","jobTitle":"数据分析师","coreResponsibilities":[],"requiredSkills":[],"preferredSkills":[],"softSkills":[],"keywords":[]},"aspirationalResumeMarkdown":"# A"}';
   const result = parseAiResumeResponse(raw);
 
   assert.strictEqual(result.ok, false);
@@ -137,6 +157,25 @@ test('parseAiResumeResponse reports non-object JSON responses without throwing',
     assert.match(result.error, /object/i);
     assert.strictEqual(result.raw, raw);
   });
+});
+
+test('parseAiResumeResponse reports missing required jdAnalysis schema fields', () => {
+  const raw = '{"jdAnalysis":{"jobTitle":"前端工程师"},"aspirationalResumeMarkdown":"# A","groundedResumeMarkdown":"# G"}';
+  const result = parseAiResumeResponse(raw);
+
+  assert.strictEqual(result.ok, false);
+  assert.match(result.error, /jdAnalysis\.isLikelyJobDescription/);
+  assert.match(result.error, /jdAnalysis\.requiredSkills/);
+  assert.strictEqual(result.raw, raw);
+});
+
+test('normalizeResumeWarnings adds a visible warning for non-JD pages', () => {
+  const warnings = normalizeResumeWarnings([], { isLikelyJobDescription: false }, ['页面内容超过 12000 字符']);
+
+  assert.deepStrictEqual(warnings, [
+    '页面可能不是招聘 JD，请谨慎参考生成结果。',
+    '页面内容超过 12000 字符',
+  ]);
 });
 
 test('buildAnalysisMarkdown creates a downloadable Markdown report containing title, skills, warnings', () => {

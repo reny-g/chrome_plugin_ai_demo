@@ -33,7 +33,9 @@
   function sanitizeBaseName(fileName) {
     const raw = String(fileName || '').replace(/\.md$/i, '');
     const cleaned = raw
-      .replace(/[<>:"/\\|?*\x00-\x1F]/g, '')
+      .replace(/[<>:"/\\|?*\x00-\x1F]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
       .replace(/^\.+|\.+$/g, '')
       .trim();
 
@@ -124,13 +126,40 @@
       missing.push('groundedResumeMarkdown');
     }
 
-    if (missing.length) {
-      return { ok: false, error: `Missing required field(s): ${missing.join(', ')}`, raw };
-    }
-
     const jdAnalysis = data.jdAnalysis && typeof data.jdAnalysis === 'object' && !Array.isArray(data.jdAnalysis)
       ? data.jdAnalysis
-      : {};
+      : null;
+    if (!jdAnalysis) {
+      missing.push('jdAnalysis');
+    } else {
+      const requiredJdFields = [
+        'isLikelyJobDescription',
+        'confidence',
+        'jobTitle',
+        'coreResponsibilities',
+        'requiredSkills',
+        'preferredSkills',
+        'softSkills',
+        'keywords',
+      ];
+      for (const field of requiredJdFields) {
+        if (!(field in jdAnalysis)) {
+          missing.push(`jdAnalysis.${field}`);
+        }
+      }
+      for (const field of ['coreResponsibilities', 'requiredSkills', 'preferredSkills', 'softSkills', 'keywords']) {
+        if (field in jdAnalysis && !Array.isArray(jdAnalysis[field])) {
+          missing.push(`jdAnalysis.${field}`);
+        }
+      }
+      if ('isLikelyJobDescription' in jdAnalysis && typeof jdAnalysis.isLikelyJobDescription !== 'boolean') {
+        missing.push('jdAnalysis.isLikelyJobDescription');
+      }
+    }
+
+    if (missing.length) {
+      return { ok: false, error: `Missing or invalid required field(s): ${missing.join(', ')}`, raw };
+    }
 
     return {
       ok: true,
@@ -140,6 +169,20 @@
       gapSuggestions: Array.isArray(data.gapSuggestions) ? data.gapSuggestions : [],
       warnings: Array.isArray(data.warnings) ? data.warnings : [],
     };
+  }
+
+  function normalizeResumeWarnings(warnings, jdAnalysis, extraWarnings) {
+    const normalized = [];
+    if (jdAnalysis && jdAnalysis.isLikelyJobDescription === false) {
+      normalized.push('页面可能不是招聘 JD，请谨慎参考生成结果。');
+    }
+    for (const warning of Array.isArray(warnings) ? warnings : []) {
+      if (warning) normalized.push(String(warning));
+    }
+    for (const warning of Array.isArray(extraWarnings) ? extraWarnings : []) {
+      if (warning) normalized.push(String(warning));
+    }
+    return Array.from(new Set(normalized));
   }
 
   function listSection(items, emptyText) {
@@ -236,6 +279,7 @@
     buildDownloadFileName,
     buildResumeOptimizationMessages,
     parseAiResumeResponse,
+    normalizeResumeWarnings,
     buildAnalysisMarkdown,
   };
 }));

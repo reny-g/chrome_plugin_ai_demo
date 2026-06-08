@@ -33,6 +33,7 @@ const els = {
 
 const resumeUtils = window.ResumeOptimizerUtils;
 let savedResume = null;
+let resumeGenerationSeq = 0;
 
 // 初始化：从 storage 读默认 provider
 chrome.storage.local.get({ provider: 'openai' }).then((s) => {
@@ -134,6 +135,7 @@ async function handleResumeUpload(file) {
   }
 
   savedResume = resumeUtils.buildResumeRecord(file.name, markdown);
+  resumeGenerationSeq += 1;
   await chrome.storage.local.set({ [resumeUtils.RESUME_STORAGE_KEY]: savedResume });
   els.resumePreview.classList.add('hidden');
   els.resumePreview.textContent = '';
@@ -144,6 +146,7 @@ async function handleResumeUpload(file) {
 async function clearSavedResume() {
   await chrome.storage.local.remove(resumeUtils.RESUME_STORAGE_KEY);
   savedResume = null;
+  resumeGenerationSeq += 1;
   renderResumeState();
   els.resumeResult.classList.add('hidden');
   els.resumeResult.innerHTML = '';
@@ -162,6 +165,9 @@ async function runResumeOptimization() {
     return;
   }
 
+  const requestSeq = resumeGenerationSeq + 1;
+  const requestResume = savedResume;
+  resumeGenerationSeq = requestSeq;
   els.optimizeResumeBtn.disabled = true;
   els.resumeResult.classList.add('hidden');
   els.resumeResult.innerHTML = '';
@@ -169,13 +175,17 @@ async function runResumeOptimization() {
 
   try {
     const response = await chrome.runtime.sendMessage({ type: 'OPTIMIZE_RESUME_FOR_ACTIVE_TAB' });
+    if (requestSeq !== resumeGenerationSeq || requestResume !== savedResume) return;
     if (!response?.ok) throw new Error(response?.error || '未知错误');
     renderResumeOptimizationResult(response.data || {});
     hideStatus();
   } catch (error) {
+    if (requestSeq !== resumeGenerationSeq || requestResume !== savedResume) return;
     showStatus('生成简历优化失败：' + (error?.message || error), 'error');
   } finally {
-    els.optimizeResumeBtn.disabled = !savedResume?.markdown;
+    if (requestSeq === resumeGenerationSeq) {
+      els.optimizeResumeBtn.disabled = !savedResume?.markdown;
+    }
   }
 }
 
