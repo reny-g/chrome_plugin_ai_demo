@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>AI 网页摘要</title>
+  <link rel="stylesheet" href="sidepanel.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>AI 网页摘要</h1>
+    <button id="open-options" class="icon-btn" title="设置">⚙️</button>
+  </header>
+
+  <section class="control-area">
+    <label class="provider-row">
+      <span>AI 来源：</span>
+      <select id="provider-select">
+        <option value="openai">OpenAI / Doubao</option>
+        <option value="claude">Claude</option>
+        <option value="chrome-ai">Chrome 内置 Summarizer</option>
+      </select>
+    </label>
+    <button id="summarize-btn" class="primary-btn">一键生成摘要</button>
+  </section>
+
+  <section id="status" class="status hidden"></section>
+
+  <section id="result-area" class="result-area hidden">
+    <div class="page-meta">
+      <div id="page-title" class="page-title"></div>
+      <a id="page-url" class="page-url" target="_blank" rel="noreferrer"></a>
+    </div>
+    <article id="summary-content" class="summary-content"></article>
+    <details id="source-evidence" class="source-evidence">
+      <summary>
+        <span>原文证据</span>
+        <span id="source-stats" class="source-stats"></span>
+      </summary>
+      <div class="source-toolbar">
+        <button id="copy-source-btn" class="ghost-btn" type="button">复制原文</button>
+      </div>
+      <pre id="source-content" class="source-content"></pre>
+    </details>
+    <footer class="result-footer">
+      <button id="copy-btn" class="ghost-btn">复制摘要</button>
+      <span id="provider-tag" class="tag"></span>
+    </footer>
+  </section>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

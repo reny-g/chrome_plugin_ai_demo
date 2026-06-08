@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "AI 网页摘要助手",
+  "version": "0.1.0",
+  "description": "一键调用 AI 为当前网页生成内容摘要，支持 OpenAI 兼容接口与 Chrome 内置 Summarizer API。",
+  "minimum_chrome_version": "138",
+
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "sidePanel"
+  ],
+
+  "host_permissions": [
+    "<all_urls>"
+  ],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "action": {
+    "default_title": "AI 网页摘要",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+
+  "options_page": "options.html"
+}
