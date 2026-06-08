@@ -92,7 +92,6 @@ async function handleResumeOptimization() {
   const utils = self.ResumeOptimizerUtils;
   if (!utils) throw new Error('简历优化工具未加载，请刷新扩展后重试');
 
-  const pageData = await extractActiveTab();
   const settings = await loadSettings();
   const provider = settings.provider || 'openai';
   const stored = await chrome.storage.local.get(utils.RESUME_STORAGE_KEY);
@@ -104,9 +103,14 @@ async function handleResumeOptimization() {
       : '';
 
   if (!resumeMarkdown.trim()) {
-    throw new Error('请先上传并保存 Markdown 简历');
+    throw new Error('请先上传 Markdown 简历');
   }
 
+  if (provider === 'builtin' || provider === 'chrome-ai') {
+    throw new Error('简历优化暂不支持 Chrome 内置 AI，请在设置页选择远程 AI 提供商');
+  }
+
+  const pageData = await extractActiveTab();
   const truncationWarnings = [];
   const pageContent = truncateWithWarning(
     pageData.content || '',
