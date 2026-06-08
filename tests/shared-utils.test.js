@@ -5,6 +5,7 @@ const {
   buildResumeRecord,
   sanitizeBaseName,
   buildDownloadFileName,
+  buildResumeOptimizationMessages,
   parseAiResumeResponse,
   buildAnalysisMarkdown,
 } = require('../shared-utils');
@@ -59,6 +60,26 @@ test('buildDownloadFileName includes sanitized base, kind, and date', () => {
   const fileName = buildDownloadFileName('my<bad>:resume?.md', 'analysis', new Date('2026-06-08T12:34:56Z'));
 
   assert.strictEqual(fileName, 'mybadresume-analysis-2026-06-08.md');
+});
+
+test('buildResumeOptimizationMessages creates system and user prompts for JD resume optimization', () => {
+  const messages = buildResumeOptimizationMessages({
+    pageTitle: 'Senior Frontend Engineer',
+    pageUrl: 'https://example.com/jobs/frontend',
+    pageContent: 'We need React, Chrome Extension, and accessibility experience.',
+    resumeMarkdown: '# Resume\n\nBuilt browser extension features.',
+  });
+
+  assert.strictEqual(messages.length, 2);
+  assert.strictEqual(messages[0].role, 'system');
+  assert.strictEqual(messages[1].role, 'user');
+  assert.match(messages[0].content, /只输出有效 JSON/);
+  assert.match(messages[0].content, /不要添加原简历中不存在的事实/);
+  assert.match(messages[1].content, /Senior Frontend Engineer/);
+  assert.match(messages[1].content, /https:\/\/example\.com\/jobs\/frontend/);
+  assert.match(messages[1].content, /React, Chrome Extension, and accessibility/);
+  assert.match(messages[1].content, /# Resume/);
+  assert.match(messages[1].content, /Built browser extension features/);
 });
 
 test('parseAiResumeResponse parses direct JSON', () => {
