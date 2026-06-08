@@ -197,11 +197,22 @@ function renderResumeOptimizationResult(data) {
 
   if (result.parseError) {
     const rawOutput = result.rawOutput || result.raw || '';
+    const warnings = Array.isArray(result.warnings) ? result.warnings : [];
+    const warningHtml = warnings.length
+      ? `
+      <section class="result-block warning-block">
+        <h2>风险提醒</h2>
+        <ul>
+          ${warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join('')}
+        </ul>
+      </section>`
+      : '';
     els.resumeResult.innerHTML = `
       <section class="result-block warning-block">
         <h2>格式异常</h2>
         <p>${escapeHtml(result.parseError)}</p>
       </section>
+      ${warningHtml}
       <section class="result-block">
         <h2>AI 原始输出</h2>
         <pre class="markdown-preview">${escapeHtml(rawOutput)}</pre>
