@@ -75,6 +75,14 @@ test('buildResumeOptimizationMessages creates system and user prompts for JD res
   assert.strictEqual(messages[1].role, 'user');
   assert.match(messages[0].content, /只输出有效 JSON/);
   assert.match(messages[0].content, /不要添加原简历中不存在的事实/);
+  assert.match(messages[0].content, /isLikelyJobDescription/);
+  assert.match(messages[0].content, /confidence/);
+  assert.match(messages[0].content, /jobTitle/);
+  assert.match(messages[0].content, /coreResponsibilities/);
+  assert.match(messages[0].content, /requiredSkills/);
+  assert.match(messages[0].content, /preferredSkills/);
+  assert.match(messages[0].content, /softSkills/);
+  assert.match(messages[0].content, /keywords/);
   assert.match(messages[1].content, /Senior Frontend Engineer/);
   assert.match(messages[1].content, /https:\/\/example\.com\/jobs\/frontend/);
   assert.match(messages[1].content, /React, Chrome Extension, and accessibility/);
@@ -152,6 +160,8 @@ test('buildAnalysisMarkdown includes all spec-shaped JD analysis fields', () => 
   const markdown = buildAnalysisMarkdown({
     jdAnalysis: {
       jobTitle: 'Senior Frontend Engineer',
+      isLikelyJobDescription: false,
+      confidence: 'low',
       coreResponsibilities: ['Lead frontend architecture'],
       requiredSkills: ['JavaScript'],
       preferredSkills: ['Chrome Extension'],
@@ -161,6 +171,10 @@ test('buildAnalysisMarkdown includes all spec-shaped JD analysis fields', () => 
   });
 
   assert.match(markdown, /Senior Frontend Engineer/);
+  assert.match(markdown, /是否像 JD/);
+  assert.match(markdown, /否/);
+  assert.match(markdown, /置信度/);
+  assert.match(markdown, /low/);
   assert.match(markdown, /Lead frontend architecture/);
   assert.match(markdown, /JavaScript/);
   assert.match(markdown, /Chrome Extension/);

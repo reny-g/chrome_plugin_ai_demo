@@ -66,6 +66,7 @@
       '你是严谨的 JD 简历优化助手。',
       '只输出有效 JSON，不要输出 Markdown 代码块、解释、前后缀或多余文本。',
       '必须返回一个 JSON object，字段包括：jdAnalysis、aspirationalResumeMarkdown、groundedResumeMarkdown、gapSuggestions、warnings。',
+      'jdAnalysis 必须是 object，字段包括：isLikelyJobDescription(boolean)、confidence(high|medium|low)、jobTitle、coreResponsibilities、requiredSkills、preferredSkills、softSkills、keywords。',
       'jdAnalysis 用于概括页面/JD 的岗位、职责、硬性要求、加分项、关键词和内容可信度。',
       'aspirationalResumeMarkdown 和 groundedResumeMarkdown 都必须是完整 Markdown 简历，不是片段或修改建议。',
       '两份简历都必须尽量保留原简历的结构、标题层级、语气、排版风格和已有内容组织。',
@@ -173,6 +174,12 @@
     const jdAnalysis = source.jdAnalysis || {};
     const title = jdAnalysis.title || jdAnalysis.jobTitle || '未命名岗位';
     const skills = Array.isArray(jdAnalysis.skills) ? jdAnalysis.skills : [];
+    const isLikelyJobDescription = jdAnalysis.isLikelyJobDescription === true
+      ? '是'
+      : jdAnalysis.isLikelyJobDescription === false
+        ? '否'
+        : '不确定';
+    const confidence = jdAnalysis.confidence ? String(jdAnalysis.confidence) : '未提供';
 
     return [
       '# JD 分析与补充建议',
@@ -180,6 +187,11 @@
       `## 岗位标题`,
       '',
       String(title),
+      '',
+      '## JD 判断',
+      '',
+      `- 是否像 JD：${isLikelyJobDescription}`,
+      `- 置信度：${confidence}`,
       '',
       '## 技能要求',
       '',
