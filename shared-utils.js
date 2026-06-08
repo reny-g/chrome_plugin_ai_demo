@@ -149,6 +149,25 @@
     return items.map((item) => `- ${String(item)}`).join('\n');
   }
 
+  function formatGapSuggestion(gap) {
+    if (!gap || typeof gap !== 'object' || Array.isArray(gap)) {
+      return String(gap);
+    }
+
+    const area = gap.area ? String(gap.area) : '未分类';
+    const suggestion = gap.suggestion ? String(gap.suggestion) : '暂无具体建议';
+    const reason = gap.reason ? `（原因：${String(gap.reason)}）` : '';
+    return `${area}：${suggestion}${reason}`;
+  }
+
+  function gapSuggestionsSection(items) {
+    if (!Array.isArray(items) || items.length === 0) {
+      return '- 暂无补充建议';
+    }
+
+    return items.map((item) => `- ${formatGapSuggestion(item)}`).join('\n');
+  }
+
   function buildAnalysisMarkdown(data) {
     const source = data || {};
     const jdAnalysis = source.jdAnalysis || {};
@@ -166,9 +185,29 @@
       '',
       listSection(skills, '暂无技能要求'),
       '',
+      '## 核心职责',
+      '',
+      listSection(jdAnalysis.coreResponsibilities, '暂无核心职责'),
+      '',
+      '## 必备技能',
+      '',
+      listSection(jdAnalysis.requiredSkills, '暂无必备技能'),
+      '',
+      '## 加分技能',
+      '',
+      listSection(jdAnalysis.preferredSkills, '暂无加分技能'),
+      '',
+      '## 软技能',
+      '',
+      listSection(jdAnalysis.softSkills, '暂无软技能'),
+      '',
+      '## 关键词',
+      '',
+      listSection(jdAnalysis.keywords, '暂无关键词'),
+      '',
       '## 补充建议',
       '',
-      listSection(source.gapSuggestions, '暂无补充建议'),
+      gapSuggestionsSection(source.gapSuggestions),
       '',
       '## 风险提醒',
       '',

@@ -147,3 +147,38 @@ test('buildAnalysisMarkdown creates a downloadable Markdown report containing ti
   assert.match(markdown, /Chrome Extension/);
   assert.match(markdown, /不要虚构工作经历/);
 });
+
+test('buildAnalysisMarkdown includes all spec-shaped JD analysis fields', () => {
+  const markdown = buildAnalysisMarkdown({
+    jdAnalysis: {
+      jobTitle: 'Senior Frontend Engineer',
+      coreResponsibilities: ['Lead frontend architecture'],
+      requiredSkills: ['JavaScript'],
+      preferredSkills: ['Chrome Extension'],
+      softSkills: ['Cross-functional communication'],
+      keywords: ['Manifest V3'],
+    },
+  });
+
+  assert.match(markdown, /Senior Frontend Engineer/);
+  assert.match(markdown, /Lead frontend architecture/);
+  assert.match(markdown, /JavaScript/);
+  assert.match(markdown, /Chrome Extension/);
+  assert.match(markdown, /Cross-functional communication/);
+  assert.match(markdown, /Manifest V3/);
+});
+
+test('buildAnalysisMarkdown renders object-shaped gap suggestions as human-readable content', () => {
+  const markdown = buildAnalysisMarkdown({
+    gapSuggestions: [{
+      area: 'Project experience',
+      reason: 'The JD requires a complex frontend project',
+      suggestion: 'Add a verifiable project example',
+    }],
+  });
+
+  assert.match(markdown, /Project experience/);
+  assert.match(markdown, /The JD requires a complex frontend project/);
+  assert.match(markdown, /Add a verifiable project example/);
+  assert.doesNotMatch(markdown, /\[object Object\]/);
+});

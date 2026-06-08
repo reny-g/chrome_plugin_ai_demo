@@ -67,6 +67,11 @@ body {
   background: #fff;
   border-bottom: 1px solid #e1e4e8;
 }
+.global-controls {
+  padding: 12px 16px;
+  background: #fff;
+  border-bottom: 1px solid #e1e4e8;
+}
 .provider-row {
   display: flex;
   align-items: center;

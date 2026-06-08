@@ -16,18 +16,21 @@
     <button id="resume-mode-tab" class="mode-tab" type="button" role="tab" aria-selected="false">简历优化</button>
   </nav>
 
+  <section class="global-controls">
+    <label class="provider-row">
+      <span>AI 来源：</span>
+      <select id="provider-select">
+        <option value="openai">OpenAI / Doubao</option>
+        <option value="claude">Claude</option>
+        <option value="chrome-ai">Chrome 内置 Summarizer</option>
+      </select>
+    </label>
+  </section>
+
   <section id="status" class="status hidden"></section>
 
   <section id="summary-mode-panel" class="mode-panel">
     <section class="control-area">
-      <label class="provider-row">
-        <span>AI 来源：</span>
-        <select id="provider-select">
-          <option value="openai">OpenAI / Doubao</option>
-          <option value="claude">Claude</option>
-          <option value="chrome-ai">Chrome 内置 Summarizer</option>
-        </select>
-      </label>
       <button id="summarize-btn" class="primary-btn">一键生成摘要</button>
     </section>
 
