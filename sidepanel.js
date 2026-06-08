@@ -49,6 +49,7 @@ els.provider.addEventListener('change', () => {
 els.options.addEventListener('click', () => chrome.runtime.openOptionsPage());
 
 els.btn.addEventListener('click', runSummarize);
+els.optimizeResumeBtn.addEventListener('click', runResumeOptimization);
 
 els.uploadResumeBtn.addEventListener('click', () => els.resumeFileInput.click());
 
@@ -153,6 +154,125 @@ function formatResumeTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '时间未知';
   return date.toLocaleString();
+}
+
+async function runResumeOptimization() {
+  if (!savedResume?.markdown) {
+    showStatus('请先上传 Markdown 简历。', 'error');
+    return;
+  }
+
+  els.optimizeResumeBtn.disabled = true;
+  els.resumeResult.classList.add('hidden');
+  els.resumeResult.innerHTML = '';
+  showStatus('正在读取当前网页并生成简历优化...', 'loading');
+
+  try {
+    const response = await chrome.runtime.sendMessage({ type: 'OPTIMIZE_RESUME_FOR_ACTIVE_TAB' });
+    if (!response?.ok) throw new Error(response?.error || '未知错误');
+    renderResumeOptimizationResult(response.data || {});
+    hideStatus();
+  } catch (error) {
+    showStatus('生成简历优化失败：' + (error?.message || error), 'error');
+  } finally {
+    els.optimizeResumeBtn.disabled = !savedResume?.markdown;
+  }
+}
+
+function downloadMarkdown(fileName, markdown) {
+  const blob = new Blob([String(markdown || '')], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function renderResumeOptimizationResult(data) {
+  const result = data || {};
+  els.resumeResult.classList.remove('hidden');
+
+  if (result.parseError) {
+    const rawOutput = result.rawOutput || result.raw || '';
+    els.resumeResult.innerHTML = `
+      <section class="result-block warning-block">
+        <h2>格式异常</h2>
+        <p>${escapeHtml(result.parseError)}</p>
+      </section>
+      <section class="result-block">
+        <h2>AI 原始输出</h2>
+        <pre class="markdown-preview">${escapeHtml(rawOutput)}</pre>
+      </section>
+    `;
+    return;
+  }
+
+  const analysisMarkdown = resumeUtils.buildAnalysisMarkdown(result);
+  const aspirationalMarkdown = String(result.aspirationalResumeMarkdown || '');
+  const groundedMarkdown = String(result.groundedResumeMarkdown || '');
+  const resumeFileName = result.resumeFileName || savedResume?.fileName || 'resume.md';
+  const aspirationalName = resumeUtils.buildDownloadFileName(resumeFileName, 'aspirational');
+  const groundedName = resumeUtils.buildDownloadFileName(resumeFileName, 'grounded');
+  const analysisName = resumeUtils.buildDownloadFileName(resumeFileName, 'analysis');
+
+  els.resumeResult.innerHTML = `
+    <section class="result-block">
+      <div class="section-heading">
+        <h2>JD 分析与建议</h2>
+        <div class="action-row compact">
+          <button id="download-analysis-btn" class="ghost-btn" type="button">下载分析</button>
+        </div>
+      </div>
+      <div class="markdown-body-lite">${renderMarkdown(analysisMarkdown)}</div>
+    </section>
+    <section class="result-block">
+      <div class="section-heading">
+        <h2>进阶简历</h2>
+        <div class="action-row compact">
+          <button id="copy-aspirational-btn" class="ghost-btn" type="button">复制</button>
+          <button id="download-aspirational-btn" class="ghost-btn" type="button">下载</button>
+        </div>
+      </div>
+      <div class="markdown-body-lite">${renderMarkdown(aspirationalMarkdown || '暂无进阶简历内容。')}</div>
+    </section>
+    <section class="result-block">
+      <div class="section-heading">
+        <h2>稳妥简历</h2>
+        <div class="action-row compact">
+          <button id="copy-grounded-btn" class="ghost-btn" type="button">复制</button>
+          <button id="download-grounded-btn" class="ghost-btn" type="button">下载</button>
+        </div>
+      </div>
+      <div class="markdown-body-lite">${renderMarkdown(groundedMarkdown || '暂无稳妥简历内容。')}</div>
+    </section>
+  `;
+
+  bindResumeResultButton('copy-aspirational-btn', () => copyResumeMarkdown(aspirationalMarkdown, '进阶简历已复制。'));
+  bindResumeResultButton('download-aspirational-btn', () => downloadMarkdown(aspirationalName, aspirationalMarkdown));
+  bindResumeResultButton('copy-grounded-btn', () => copyResumeMarkdown(groundedMarkdown, '稳妥简历已复制。'));
+  bindResumeResultButton('download-grounded-btn', () => downloadMarkdown(groundedName, groundedMarkdown));
+  bindResumeResultButton('download-analysis-btn', () => downloadMarkdown(analysisName, analysisMarkdown));
+}
+
+function bindResumeResultButton(id, handler) {
+  const button = els.resumeResult.querySelector(`#${id}`);
+  if (button) button.addEventListener('click', handler);
+}
+
+async function copyResumeMarkdown(markdown, successMessage) {
+  try {
+    await navigator.clipboard.writeText(String(markdown || ''));
+    showStatus(successMessage, 'success');
+  } catch (error) {
+    showStatus('复制失败：' + (error?.message || error), 'error');
+  }
+}
+
+function escapeHtml(value) {
+  return String(value || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
 
 async function runSummarize() {
