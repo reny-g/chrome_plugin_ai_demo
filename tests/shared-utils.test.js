@@ -19,6 +19,8 @@ const {
   parseMarkdownBlocks,
   textSimilarity,
   compareMarkdownDocuments,
+  mergeResumeChanges,
+  buildResumeComparisonMarkdown,
 } = require('../shared-utils');
 
 function test(name, fn) {
@@ -831,4 +833,109 @@ test('compareMarkdownDocuments does not mark unchanged trailing blocks reordered
     diffs.map(({ type, optimized }) => ({ type, optimized })),
     [{ type: 'added', optimized: '- Python' }]
   );
+});
+
+test('mergeResumeChanges attaches matching AI explanations to local diffs', () => {
+  const result = mergeResumeChanges([{
+    section: '项目经历 / RAG',
+    type: 'modified',
+    original: '负责问答系统。',
+    optimized: '负责 RAG 问答系统。',
+    originalIndex: 1,
+    optimizedIndex: 1,
+  }], {
+    summary: ['强化 RAG 能力'],
+    changes: [{
+      section: '项目经历 / RAG',
+      original: '负责问答系统。',
+      optimized: '负责 RAG 问答系统。',
+      reason: '匹配 JD 的 RAG 要求。',
+      jdMatch: ['RAG'],
+      factStatus: 'strengthened',
+    }],
+  });
+
+  assert.deepStrictEqual(result.summary, ['强化 RAG 能力']);
+  assert.strictEqual(result.changes[0].reason, '匹配 JD 的 RAG 要求。');
+  assert.deepStrictEqual(result.changes[0].jdMatch, ['RAG']);
+  assert.strictEqual(result.changes[0].factStatus, 'strengthened');
+});
+
+test('mergeResumeChanges keeps unexplained local differences', () => {
+  const result = mergeResumeChanges([{
+    section: '技能',
+    type: 'added',
+    original: '',
+    optimized: '- Python',
+    originalIndex: -1,
+    optimizedIndex: 2,
+  }], { summary: [], changes: [] });
+
+  assert.strictEqual(result.changes[0].reason, '未提供优化原因');
+  assert.deepStrictEqual(result.changes[0].jdMatch, []);
+  assert.strictEqual(result.changes[0].factStatus, 'risk');
+});
+
+test('mergeResumeChanges drops AI claims without a local text change', () => {
+  const result = mergeResumeChanges([], {
+    summary: ['声称有变化'],
+    changes: [{
+      section: '技能',
+      original: 'Java',
+      optimized: 'Python',
+      reason: '匹配 JD',
+      jdMatch: ['Python'],
+      factStatus: 'strengthened',
+    }],
+  });
+
+  assert.deepStrictEqual(result.changes, []);
+});
+
+test('buildResumeComparisonMarkdown includes summary comparison and risk sections', () => {
+  const markdown = buildResumeComparisonMarkdown({
+    kind: 'aspirational',
+    resumeFileName: 'resume.md',
+    jobTitle: 'AI 工程师',
+    generatedAt: '2026-06-09T10:00:00.000Z',
+    originalMarkdown: '# Resume\n\n负责问答系统。',
+    optimizedMarkdown: '# Resume\n\n负责 RAG 问答系统。\n\n[待补充：移动端项目]',
+    changeSummary: {
+      summary: ['强化 RAG 能力'],
+      changes: [{
+        section: 'Resume',
+        original: '负责问答系统。',
+        optimized: '负责 RAG 问答系统。',
+        reason: '匹配 JD。',
+        jdMatch: ['RAG'],
+        factStatus: 'strengthened',
+      }],
+    },
+  });
+
+  assert.match(markdown, /^# 进阶简历优化对比报告/m);
+  assert.match(markdown, /强化 RAG 能力/);
+  assert.match(markdown, /#### 原文/);
+  assert.match(markdown, /负责问答系统/);
+  assert.match(markdown, /负责 RAG 问答系统/);
+  assert.match(markdown, /对应 JD：RAG/);
+  assert.match(markdown, /## 待补充内容[\s\S]*\[待补充：移动端项目\]/);
+  assert.match(markdown, /## 事实风险/);
+});
+
+test('buildResumeComparisonMarkdown creates a local-only grounded report', () => {
+  const markdown = buildResumeComparisonMarkdown({
+    kind: 'grounded',
+    resumeFileName: 'resume.md',
+    jobTitle: '后端工程师',
+    generatedAt: '2026-06-09T10:00:00.000Z',
+    originalMarkdown: '## 技能\n\n- Java',
+    optimizedMarkdown: '## 技能\n\n- Java\n- Redis',
+    changeSummary: null,
+  });
+
+  assert.match(markdown, /^# 稳妥简历优化对比报告/m);
+  assert.match(markdown, /Redis/);
+  assert.match(markdown, /未提供优化原因/);
+  assert.match(markdown, /事实状态：需要核实/);
 });

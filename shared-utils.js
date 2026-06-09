@@ -506,6 +506,194 @@
     });
   }
 
+  function inferFactStatus(diff) {
+    if (/\[待补充：[^\]]+\]/.test(diff.optimized || '')) return 'placeholder';
+    if (diff.type === 'reordered') return 'reordered';
+    if (diff.type === 'removed') return 'removed';
+    if (diff.type === 'modified') return 'rephrased';
+    return 'risk';
+  }
+
+  function mergeResumeChanges(localDiffs, changeSummary) {
+    const normalizedSummary = normalizeChangeSummary(changeSummary);
+    const aiChanges = normalizedSummary.changes;
+    const usedAiIndexes = new Set();
+
+    const changes = (Array.isArray(localDiffs) ? localDiffs : []).map((diff) => {
+      let bestMatch = null;
+
+      aiChanges.forEach((change, index) => {
+        if (usedAiIndexes.has(index)) return;
+
+        const sectionScore =
+          normalizeMarkdownComparableText(change.section) ===
+          normalizeMarkdownComparableText(diff.section)
+            ? 0.25
+            : 0;
+        const originalScore = diff.original
+          ? textSimilarity(change.original, diff.original)
+          : change.original
+            ? 0
+            : 1;
+        const optimizedScore = diff.optimized
+          ? textSimilarity(change.optimized, diff.optimized)
+          : change.optimized
+            ? 0
+            : 1;
+        const score = sectionScore + originalScore * 0.35 + optimizedScore * 0.4;
+
+        if (!bestMatch || score > bestMatch.score) {
+          bestMatch = { change, index, score };
+        }
+      });
+
+      if (bestMatch && bestMatch.score >= 0.62) {
+        usedAiIndexes.add(bestMatch.index);
+        return {
+          ...diff,
+          reason: bestMatch.change.reason,
+          jdMatch: bestMatch.change.jdMatch,
+          factStatus: bestMatch.change.factStatus,
+        };
+      }
+
+      return {
+        ...diff,
+        reason: '未提供优化原因',
+        jdMatch: [],
+        factStatus: inferFactStatus(diff),
+      };
+    });
+
+    return {
+      summary: normalizedSummary.summary,
+      changes,
+    };
+  }
+
+  function reportList(items, emptyText) {
+    return items.length
+      ? items.map((item) => `- ${String(item)}`).join('\n')
+      : `- ${emptyText}`;
+  }
+
+  function factStatusLabel(status) {
+    return ({
+      rephrased: '换角度表达',
+      strengthened: '基于原内容强化',
+      reordered: '顺序调整',
+      removed: '内容删除',
+      placeholder: '待用户补充',
+      risk: '需要核实',
+    })[status] || '需要核实';
+  }
+
+  function buildResumeComparisonMarkdown(input) {
+    const source = input || {};
+    const kind = source.kind === 'grounded' ? 'grounded' : 'aspirational';
+    const versionTitle = kind === 'grounded' ? '稳妥简历' : '进阶简历';
+    const localDiffs = compareMarkdownDocuments(
+      source.originalMarkdown,
+      source.optimizedMarkdown
+    );
+    const merged = mergeResumeChanges(localDiffs, source.changeSummary);
+    const counts = {
+      rephrased: 0,
+      strengthened: 0,
+      reordered: 0,
+      removed: 0,
+      placeholder: 0,
+      risk: 0,
+    };
+
+    for (const change of merged.changes) {
+      counts[change.factStatus] = (counts[change.factStatus] || 0) + 1;
+    }
+
+    const placeholders = Array.from(new Set(
+      String(source.optimizedMarkdown || '').match(/\[待补充：[^\]]+\]/g) || []
+    ));
+    const added = merged.changes.filter((change) => change.type === 'added');
+    const removed = merged.changes.filter((change) => change.type === 'removed');
+    const reordered = merged.changes.filter((change) => change.type === 'reordered');
+    const risks = merged.changes.filter((change) =>
+      change.factStatus === 'risk' ||
+      (kind === 'grounded' && change.factStatus === 'placeholder')
+    );
+    const comparisonSections = merged.changes.map((change, index) => [
+      `### ${index + 1}. ${change.section || '未分区'}`,
+      '',
+      '#### 原文',
+      '',
+      change.original || '（无，对应新增内容）',
+      '',
+      '#### 优化后',
+      '',
+      change.optimized || '（无，对应删除内容）',
+      '',
+      '#### 优化说明',
+      '',
+      `- 优化原因：${change.reason}`,
+      `- 对应 JD：${change.jdMatch.length ? change.jdMatch.join('、') : '未明确'}`,
+      `- 事实状态：${factStatusLabel(change.factStatus)}`,
+    ].join('\n')).join('\n\n');
+
+    return [
+      `# ${versionTitle}优化对比报告`,
+      '',
+      '## 基本信息',
+      '',
+      `- 原简历：${source.resumeFileName || 'resume.md'}`,
+      `- 目标岗位：${source.jobTitle || '未命名岗位'}`,
+      `- 生成时间：${source.generatedAt || new Date().toISOString()}`,
+      `- 版本：${versionTitle}`,
+      '',
+      '## 简洁优化摘要',
+      '',
+      reportList(merged.summary, '未提供 AI 优化摘要，请参考逐段对照'),
+      '',
+      '## 变更类型统计',
+      '',
+      `- 表达优化：${counts.rephrased}`,
+      `- 内容强化：${counts.strengthened}`,
+      `- 顺序调整：${counts.reordered}`,
+      `- 删除内容：${counts.removed}`,
+      `- 待补充：${placeholders.length}`,
+      `- 事实风险：${counts.risk}`,
+      '',
+      '## 逐段优化对照',
+      '',
+      comparisonSections || '暂无实质变化。',
+      '',
+      '## 新增内容',
+      '',
+      reportList(added.map((change) => change.optimized), '暂无'),
+      '',
+      '## 删除内容',
+      '',
+      reportList(removed.map((change) => change.original), '暂无'),
+      '',
+      '## 顺序调整',
+      '',
+      reportList(
+        reordered.map((change) => `${change.section}：${change.optimized}`),
+        '暂无'
+      ),
+      '',
+      '## 待补充内容',
+      '',
+      reportList(placeholders, '暂无'),
+      '',
+      '## 事实风险',
+      '',
+      reportList(
+        risks.map((change) => `${change.section}：${change.optimized || change.original}`),
+        '暂无'
+      ),
+      '',
+    ].join('\n');
+  }
+
   function parseAiResumeResponse(raw) {
     let data;
     try {
@@ -694,6 +882,8 @@
     parseMarkdownBlocks,
     textSimilarity,
     compareMarkdownDocuments,
+    mergeResumeChanges,
+    buildResumeComparisonMarkdown,
     parseAiResumeResponse,
     normalizeResumeWarnings,
     buildAnalysisMarkdown,
