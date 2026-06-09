@@ -1,4 +1,6 @@
 const assert = require('node:assert');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const {
   validateMarkdownFileMeta,
@@ -6,12 +8,19 @@ const {
   sanitizeBaseName,
   buildDownloadFileName,
   buildResumeOptimizationMessages,
+  normalizeChangeSummary,
   parseAiResumeResponse,
   normalizeResumeWarnings,
   buildAnalysisMarkdown,
   buildResumeChatCompletionBody,
   readChatCompletionResult,
   formatAiServiceError,
+  normalizeMarkdownComparableText,
+  parseMarkdownBlocks,
+  textSimilarity,
+  compareMarkdownDocuments,
+  mergeResumeChanges,
+  buildResumeComparisonMarkdown,
 } = require('../shared-utils');
 
 function test(name, fn) {
@@ -67,6 +76,19 @@ test('buildDownloadFileName includes sanitized base, kind, and date', () => {
   assert.strictEqual(fileName, 'my-bad-resume-analysis-2026-06-08.md');
 });
 
+test('buildDownloadFileName creates separate comparison report names', () => {
+  const date = new Date('2026-06-09T10:00:00.000Z');
+
+  assert.strictEqual(
+    buildDownloadFileName('resume.md', 'aspirational-comparison', date),
+    'resume-aspirational-comparison-2026-06-09.md'
+  );
+  assert.strictEqual(
+    buildDownloadFileName('resume.md', 'grounded-comparison', date),
+    'resume-grounded-comparison-2026-06-09.md'
+  );
+});
+
 test('buildResumeOptimizationMessages creates system and user prompts for JD resume optimization', () => {
   const messages = buildResumeOptimizationMessages({
     pageTitle: 'Senior Frontend Engineer',
@@ -88,11 +110,155 @@ test('buildResumeOptimizationMessages creates system and user prompts for JD res
   assert.match(messages[0].content, /preferredSkills/);
   assert.match(messages[0].content, /softSkills/);
   assert.match(messages[0].content, /keywords/);
+  assert.match(messages[0].content, /aspirationalChangeSummary/);
+  assert.match(messages[0].content, /groundedChangeSummary/);
+  assert.match(messages[0].content, /summary/);
+  assert.match(messages[0].content, /changes/);
+  assert.match(messages[0].content, /section/);
+  assert.match(messages[0].content, /original/);
+  assert.match(messages[0].content, /optimized/);
+  assert.match(messages[0].content, /reason/);
+  assert.match(messages[0].content, /jdMatch/);
+  assert.match(messages[0].content, /factStatus/);
+  for (const status of ['rephrased', 'strengthened', 'reordered', 'removed', 'placeholder', 'risk']) {
+    assert.match(messages[0].content, new RegExp(status));
+  }
+  assert.match(messages[0].content, /20/);
+  assert.match(messages[0].content, /实质变化/);
+  assert.match(messages[0].content, /紧凑/);
   assert.match(messages[1].content, /Senior Frontend Engineer/);
   assert.match(messages[1].content, /https:\/\/example\.com\/jobs\/frontend/);
   assert.match(messages[1].content, /React, Chrome Extension, and accessibility/);
   assert.match(messages[1].content, /# Resume/);
   assert.match(messages[1].content, /Built browser extension features/);
+});
+
+test('normalizeChangeSummary discards invalid summary entries and invalid changes', () => {
+  const result = normalizeChangeSummary({
+    summary: [' Improved JD alignment ', '', 42, 'Added evidence'],
+    changes: [
+      {
+        section: ' Experience ',
+        original: 'Old wording',
+        optimized: 'New wording',
+        reason: 'Matches the role',
+        jdMatch: [' React ', '', 123],
+        factStatus: 'strengthened',
+      },
+      {
+        section: 'Skills',
+        original: 'JavaScript',
+        optimized: 'JavaScript and React',
+        reason: 'Keyword match',
+        jdMatch: ['React'],
+        factStatus: 'invented',
+      },
+      null,
+    ],
+  });
+
+  assert.deepStrictEqual(result, {
+    summary: ['Improved JD alignment', 'Added evidence'],
+    changes: [{
+      section: 'Experience',
+      original: 'Old wording',
+      optimized: 'New wording',
+      reason: 'Matches the role',
+      jdMatch: ['React'],
+      factStatus: 'strengthened',
+    }],
+  });
+});
+
+test('normalizeChangeSummary falls back for invalid structures and limits changes to 20', () => {
+  assert.deepStrictEqual(normalizeChangeSummary(null), { summary: [], changes: [] });
+  assert.deepStrictEqual(normalizeChangeSummary([]), { summary: [], changes: [] });
+
+  const changes = Array.from({ length: 21 }, (_, index) => ({
+    section: `Section ${index}`,
+    original: 'Original',
+    optimized: 'Optimized',
+    reason: 'Reason',
+    jdMatch: [],
+    factStatus: 'rephrased',
+  }));
+
+  assert.strictEqual(normalizeChangeSummary({ summary: [], changes }).changes.length, 20);
+});
+
+test('normalizeChangeSummary preserves string original and optimized values including empty pairs', () => {
+  const result = normalizeChangeSummary({
+    summary: [],
+    changes: [
+      {
+        section: 'Experience',
+        original: 'Removed claim',
+        optimized: '',
+        reason: 'Not relevant to the JD',
+        jdMatch: [],
+        factStatus: 'removed',
+      },
+      {
+        section: 'Experience',
+        original: '',
+        optimized: '[待补充：项目指标]',
+        reason: 'The JD requests measurable impact',
+        jdMatch: ['measurable impact'],
+        factStatus: 'placeholder',
+      },
+      {
+        section: 'Experience',
+        original: '',
+        optimized: '',
+        reason: 'No content changed',
+        jdMatch: [],
+        factStatus: 'rephrased',
+      },
+    ],
+  });
+
+  assert.deepStrictEqual(result.changes, [
+    {
+      section: 'Experience',
+      original: 'Removed claim',
+      optimized: '',
+      reason: 'Not relevant to the JD',
+      jdMatch: [],
+      factStatus: 'removed',
+    },
+    {
+      section: 'Experience',
+      original: '',
+      optimized: '[待补充：项目指标]',
+      reason: 'The JD requests measurable impact',
+      jdMatch: ['measurable impact'],
+      factStatus: 'placeholder',
+    },
+    {
+      section: 'Experience',
+      original: '',
+      optimized: '',
+      reason: 'No content changed',
+      jdMatch: [],
+      factStatus: 'rephrased',
+    },
+  ]);
+});
+
+test('background success response passes through both change summaries', () => {
+  const backgroundSource = fs.readFileSync(
+    path.join(__dirname, '..', 'background.js'),
+    'utf8'
+  );
+
+  assert.match(
+    backgroundSource,
+    /aspirationalChangeSummary:\s*parsed\.aspirationalChangeSummary/
+  );
+  assert.match(
+    backgroundSource,
+    /groundedChangeSummary:\s*parsed\.groundedChangeSummary/
+  );
 });
 
 test('buildResumeChatCompletionBody requests enough output tokens for two complete resumes', () => {
@@ -177,6 +343,8 @@ test('parseAiResumeResponse parses direct JSON', () => {
     groundedResumeMarkdown: '# 稳健版',
     gapSuggestions: ['补充项目指标'],
     warnings: ['缺少岗位年限'],
+    aspirationalChangeSummary: { summary: [], changes: [] },
+    groundedChangeSummary: { summary: [], changes: [] },
   });
 });
 
@@ -187,6 +355,64 @@ test('parseAiResumeResponse parses fenced JSON', () => {
   assert.strictEqual(result.jdAnalysis.jobTitle, '后端工程师');
   assert.deepStrictEqual(result.gapSuggestions, []);
   assert.deepStrictEqual(result.warnings, []);
+  assert.deepStrictEqual(result.aspirationalChangeSummary, { summary: [], changes: [] });
+  assert.deepStrictEqual(result.groundedChangeSummary, { summary: [], changes: [] });
+});
+
+test('parseAiResumeResponse normalizes optional change summaries', () => {
+  const result = parseAiResumeResponse(JSON.stringify({
+    jdAnalysis: {
+      isLikelyJobDescription: true,
+      confidence: 'high',
+      jobTitle: 'Frontend Engineer',
+      coreResponsibilities: [],
+      requiredSkills: [],
+      preferredSkills: [],
+      softSkills: [],
+      keywords: [],
+    },
+    aspirationalResumeMarkdown: '# A',
+    groundedResumeMarkdown: '# G',
+    aspirationalChangeSummary: {
+      summary: [' Stronger impact '],
+      changes: [{
+        section: 'Experience',
+        original: 'Built UI',
+        optimized: 'Built accessible React UI',
+        reason: 'Aligns with JD',
+        jdMatch: [' React ', null],
+        factStatus: 'strengthened',
+      }],
+    },
+    groundedChangeSummary: {
+      summary: ['Invalid change removed'],
+      changes: [{
+        section: 'Experience',
+        original: 'Built UI',
+        optimized: 'Invented metric',
+        reason: 'Looks stronger',
+        jdMatch: ['Metrics'],
+        factStatus: 'invented',
+      }],
+    },
+  }));
+
+  assert.strictEqual(result.ok, true);
+  assert.deepStrictEqual(result.aspirationalChangeSummary, {
+    summary: ['Stronger impact'],
+    changes: [{
+      section: 'Experience',
+      original: 'Built UI',
+      optimized: 'Built accessible React UI',
+      reason: 'Aligns with JD',
+      jdMatch: ['React'],
+      factStatus: 'strengthened',
+    }],
+  });
+  assert.deepStrictEqual(result.groundedChangeSummary, {
+    summary: ['Invalid change removed'],
+    changes: [],
+  });
 });
 
 test('parseAiResumeResponse reports missing required resume fields', () => {
@@ -307,4 +533,466 @@ test('buildAnalysisMarkdown renders object-shaped gap suggestions as human-reada
   assert.match(markdown, /The JD requires a complex frontend project/);
   assert.match(markdown, /Add a verifiable project example/);
   assert.doesNotMatch(markdown, /\[object Object\]/);
+});
+
+test('normalizeMarkdownComparableText ignores Markdown formatting, whitespace, case, and punctuation', () => {
+  const formatted = '**Senior Engineer**： React、Node.js，交付 90%！';
+  const plain = 'senior engineer react node.js 交付90%';
+
+  assert.strictEqual(
+    normalizeMarkdownComparableText(formatted),
+    normalizeMarkdownComparableText(plain)
+  );
+});
+
+test('normalizeMarkdownComparableText preserves numbers, dates, technical terms, and placeholder text', () => {
+  const normalized = normalizeMarkdownComparableText(
+    '- [待补充：2025-06 项目指标] 使用 .NET Node.js C++ C# React/Vue 提升 80%'
+  );
+
+  assert.match(normalized, /待补充/);
+  assert.match(normalized, /2025-06/);
+  assert.match(normalized, /\.net/);
+  assert.match(normalized, /c\+\+/);
+  assert.match(normalized, /c#/);
+  assert.match(normalized, /node\.js/);
+  assert.match(normalized, /react\/vue/);
+  assert.match(normalized, /80/);
+  assert.notStrictEqual(
+    normalized,
+    normalizeMarkdownComparableText(
+      '- [待补充：2025-06 项目指标] 使用 .NET Node.js C++ C# React/Vue 提升 90%'
+    )
+  );
+});
+
+test('normalizeMarkdownComparableText ignores prose hyphens like whitespace', () => {
+  assert.strictEqual(
+    normalizeMarkdownComparableText('Delivered foo-bar capability.'),
+    normalizeMarkdownComparableText('Delivered foo bar capability')
+  );
+});
+
+test('normalizeMarkdownComparableText treats canonically equivalent Unicode as equal', () => {
+  assert.strictEqual(
+    normalizeMarkdownComparableText('Caf\u00e9'),
+    normalizeMarkdownComparableText('Cafe\u0301')
+  );
+});
+
+test('parseMarkdownBlocks tracks heading paths and parses each Markdown block type', () => {
+  const markdown = [
+    '# Resume',
+    '',
+    'Intro line',
+    'continued here.',
+    '',
+    '## Experience',
+    '- Java',
+    '* Improved accessibility',
+    '+ Reduced load time',
+    '',
+    '> 重点',
+    '> 跨团队协作',
+    '',
+    '| Skill | Level |',
+    '| --- | --- |',
+    '| React | Advanced |',
+    '',
+    '```js',
+    'const score = 90;',
+    '```',
+    '',
+    'After code.',
+  ].join('\n');
+
+  const blocks = parseMarkdownBlocks(markdown);
+
+  assert.deepStrictEqual(
+    blocks.map(({ section, type, text, index }) => ({ section, type, text, index })),
+    [
+      {
+        section: 'Resume',
+        type: 'paragraph',
+        text: 'Intro line\ncontinued here.',
+        index: 0,
+      },
+      {
+        section: 'Resume / Experience',
+        type: 'list',
+        text: '- Java',
+        index: 1,
+      },
+      {
+        section: 'Resume / Experience',
+        type: 'list',
+        text: '* Improved accessibility',
+        index: 2,
+      },
+      {
+        section: 'Resume / Experience',
+        type: 'list',
+        text: '+ Reduced load time',
+        index: 3,
+      },
+      {
+        section: 'Resume / Experience',
+        type: 'quote',
+        text: '> 重点\n> 跨团队协作',
+        index: 4,
+      },
+      {
+        section: 'Resume / Experience',
+        type: 'table',
+        text: '| Skill | Level |\n| --- | --- |\n| React | Advanced |',
+        index: 5,
+      },
+      {
+        section: 'Resume / Experience',
+        type: 'code',
+        text: '```js\nconst score = 90;\n```',
+        index: 6,
+      },
+      {
+        section: 'Resume / Experience',
+        type: 'paragraph',
+        text: 'After code.',
+        index: 7,
+      },
+    ]
+  );
+  for (const block of blocks) {
+    assert.strictEqual(block.normalized, normalizeMarkdownComparableText(block.text));
+  }
+});
+
+test('parseMarkdownBlocks preserves C# headings and removes spaced closing hashes', () => {
+  const blocks = parseMarkdownBlocks([
+    '## C#',
+    'Language experience.',
+    '',
+    '## Title ##',
+    'Regular section.',
+  ].join('\n'));
+
+  assert.deepStrictEqual(
+    blocks.map(({ section, text }) => ({ section, text })),
+    [
+      { section: 'C#', text: 'Language experience.' },
+      { section: 'Title', text: 'Regular section.' },
+    ]
+  );
+});
+
+test('parseMarkdownBlocks keeps indented continuation lines in the same list block', () => {
+  const blocks = parseMarkdownBlocks([
+    '- Led migration',
+    '  across teams',
+    '- Shipped release',
+  ].join('\n'));
+
+  assert.deepStrictEqual(
+    blocks.map(({ type, text }) => ({ type, text })),
+    [
+      { type: 'list', text: '- Led migration\n  across teams' },
+      { type: 'list', text: '- Shipped release' },
+    ]
+  );
+});
+
+test('parseMarkdownBlocks recognizes GFM tables with optional outer pipes', () => {
+  const blocks = parseMarkdownBlocks([
+    'A | B',
+    '--- | ---',
+    'x | y',
+    '',
+    '| C | D',
+    '| --- | ---',
+    '| z | w',
+  ].join('\n'));
+
+  assert.deepStrictEqual(
+    blocks.map(({ type, text }) => ({ type, text })),
+    [
+      { type: 'table', text: 'A | B\n--- | ---\nx | y' },
+      { type: 'table', text: '| C | D\n| --- | ---\n| z | w' },
+    ]
+  );
+});
+
+test('parseMarkdownBlocks requires a delimiter row before treating pipes as a table', () => {
+  const blocks = parseMarkdownBlocks([
+    'Use React | Vue based on the project.',
+    'This remains prose.',
+  ].join('\n'));
+
+  assert.deepStrictEqual(
+    blocks.map(({ type, text }) => ({ type, text })),
+    [{
+      type: 'paragraph',
+      text: 'Use React | Vue based on the project.\nThis remains prose.',
+    }]
+  );
+});
+
+test('parseMarkdownBlocks resets deeper heading paths and uses an unsectioned fallback', () => {
+  const blocks = parseMarkdownBlocks([
+    'Before headings.',
+    '',
+    '# Work',
+    '## Current',
+    '### Details',
+    'Deep paragraph.',
+    '',
+    '## Previous',
+    'Earlier paragraph.',
+  ].join('\n'));
+
+  assert.deepStrictEqual(
+    blocks.map(({ section, text }) => ({ section, text })),
+    [
+      { section: '未分区', text: 'Before headings.' },
+      { section: 'Work / Current / Details', text: 'Deep paragraph.' },
+      { section: 'Work / Previous', text: 'Earlier paragraph.' },
+    ]
+  );
+});
+
+test('parseMarkdownBlocks closes matching fences without consuming following content', () => {
+  const blocks = parseMarkdownBlocks([
+    '~~~text',
+    '``` is content inside tilde fence',
+    '~~~',
+    'Following paragraph.',
+  ].join('\n'));
+
+  assert.deepStrictEqual(
+    blocks.map(({ type, text }) => ({ type, text })),
+    [
+      {
+        type: 'code',
+        text: '~~~text\n``` is content inside tilde fence\n~~~',
+      },
+      {
+        type: 'paragraph',
+        text: 'Following paragraph.',
+      },
+    ]
+  );
+});
+
+test('textSimilarity scores related text above unrelated text', () => {
+  const related = textSimilarity(
+    '负责知识库问答系统开发',
+    '负责 RAG 知识库问答系统端到端开发'
+  );
+  const unrelated = textSimilarity(
+    '负责知识库问答系统开发',
+    '熟悉 Kubernetes 集群运维'
+  );
+
+  assert.ok(related > unrelated);
+  assert.ok(related > 0.5);
+});
+
+test('compareMarkdownDocuments ignores formatting-only changes', () => {
+  const diffs = compareMarkdownDocuments(
+    '## 技能\n\n- **Java**。\n- Redis',
+    '## 技能\n\n* Java\n* Redis'
+  );
+
+  assert.deepStrictEqual(diffs, []);
+});
+
+test('compareMarkdownDocuments reports modified added and removed blocks', () => {
+  const diffs = compareMarkdownDocuments(
+    '## 项目\n\n- 负责问答系统\n- 使用 Redis\n\n## 技能\n\n- Java',
+    '## 项目\n\n- 负责 RAG 问答系统端到端交付\n- 使用 Milvus\n\n## 技能\n\n- Java\n- Python'
+  );
+
+  assert.ok(diffs.some((entry) =>
+    entry.type === 'modified' &&
+    entry.original.includes('问答系统') &&
+    entry.optimized.includes('RAG')
+  ));
+  assert.ok(diffs.some((entry) =>
+    entry.type === 'removed' && entry.original.includes('Redis')
+  ));
+  assert.ok(diffs.some((entry) =>
+    entry.type === 'added' && entry.optimized.includes('Milvus')
+  ));
+  assert.ok(diffs.some((entry) =>
+    entry.type === 'added' && entry.optimized.includes('Python')
+  ));
+});
+
+test('compareMarkdownDocuments recognizes reordered unchanged blocks', () => {
+  const diffs = compareMarkdownDocuments(
+    '## 项目\n\n- Java 项目\n- RAG 项目',
+    '## 项目\n\n- RAG 项目\n- Java 项目'
+  );
+
+  assert.ok(diffs.some((entry) => entry.type === 'reordered'));
+  assert.ok(diffs.every((entry) => !['added', 'removed'].includes(entry.type)));
+});
+
+test('compareMarkdownDocuments does not mark unchanged trailing blocks reordered after insertion', () => {
+  const diffs = compareMarkdownDocuments(
+    '## 技能\n\n- Java\n- Redis',
+    '## 技能\n\n- Python\n- Java\n- Redis'
+  );
+
+  assert.deepStrictEqual(
+    diffs.map(({ type, optimized }) => ({ type, optimized })),
+    [{ type: 'added', optimized: '- Python' }]
+  );
+});
+
+test('mergeResumeChanges attaches matching AI explanations to local diffs', () => {
+  const result = mergeResumeChanges([{
+    section: '项目经历 / RAG',
+    type: 'modified',
+    original: '负责问答系统。',
+    optimized: '负责 RAG 问答系统。',
+    originalIndex: 1,
+    optimizedIndex: 1,
+  }], {
+    summary: ['强化 RAG 能力'],
+    changes: [{
+      section: '项目经历 / RAG',
+      original: '负责问答系统。',
+      optimized: '负责 RAG 问答系统。',
+      reason: '匹配 JD 的 RAG 要求。',
+      jdMatch: ['RAG'],
+      factStatus: 'strengthened',
+    }],
+  });
+
+  assert.deepStrictEqual(result.summary, ['强化 RAG 能力']);
+  assert.strictEqual(result.changes[0].reason, '匹配 JD 的 RAG 要求。');
+  assert.deepStrictEqual(result.changes[0].jdMatch, ['RAG']);
+  assert.strictEqual(result.changes[0].factStatus, 'strengthened');
+});
+
+test('mergeResumeChanges keeps unexplained local differences', () => {
+  const result = mergeResumeChanges([{
+    section: '技能',
+    type: 'added',
+    original: '',
+    optimized: '- Python',
+    originalIndex: -1,
+    optimizedIndex: 2,
+  }], { summary: [], changes: [] });
+
+  assert.strictEqual(result.changes[0].reason, '未提供优化原因');
+  assert.deepStrictEqual(result.changes[0].jdMatch, []);
+  assert.strictEqual(result.changes[0].factStatus, 'risk');
+});
+
+test('mergeResumeChanges drops AI claims without a local text change', () => {
+  const result = mergeResumeChanges([], {
+    summary: ['声称有变化'],
+    changes: [{
+      section: '技能',
+      original: 'Java',
+      optimized: 'Python',
+      reason: '匹配 JD',
+      jdMatch: ['Python'],
+      factStatus: 'strengthened',
+    }],
+  });
+
+  assert.deepStrictEqual(result.changes, []);
+});
+
+test('mergeResumeChanges keeps local structural fact status authoritative', () => {
+  const result = mergeResumeChanges([
+    {
+      section: '技能',
+      type: 'added',
+      original: '',
+      optimized: '- Kubernetes',
+      originalIndex: -1,
+      optimizedIndex: 2,
+    },
+    {
+      section: '经历',
+      type: 'removed',
+      original: '- 旧项目',
+      optimized: '',
+      originalIndex: 3,
+      optimizedIndex: -1,
+    },
+  ], {
+    summary: [],
+    changes: [
+      {
+        section: '技能',
+        original: '',
+        optimized: '- Kubernetes',
+        reason: '匹配 JD 技能要求',
+        jdMatch: ['Kubernetes'],
+        factStatus: 'strengthened',
+      },
+      {
+        section: '经历',
+        original: '- 旧项目',
+        optimized: '',
+        reason: '降低无关信息',
+        jdMatch: [],
+        factStatus: 'rephrased',
+      },
+    ],
+  });
+
+  assert.strictEqual(result.changes[0].factStatus, 'risk');
+  assert.strictEqual(result.changes[1].factStatus, 'removed');
+});
+
+test('buildResumeComparisonMarkdown includes summary comparison and risk sections', () => {
+  const markdown = buildResumeComparisonMarkdown({
+    kind: 'aspirational',
+    resumeFileName: 'resume.md',
+    jobTitle: 'AI 工程师',
+    generatedAt: '2026-06-09T10:00:00.000Z',
+    originalMarkdown: '# Resume\n\n负责问答系统。',
+    optimizedMarkdown: '# Resume\n\n负责 RAG 问答系统。\n\n[待补充：移动端项目]',
+    changeSummary: {
+      summary: ['强化 RAG 能力'],
+      changes: [{
+        section: 'Resume',
+        original: '负责问答系统。',
+        optimized: '负责 RAG 问答系统。',
+        reason: '匹配 JD。',
+        jdMatch: ['RAG'],
+        factStatus: 'strengthened',
+      }],
+    },
+  });
+
+  assert.match(markdown, /^# 进阶简历优化对比报告/m);
+  assert.match(markdown, /强化 RAG 能力/);
+  assert.match(markdown, /#### 原文/);
+  assert.match(markdown, /负责问答系统/);
+  assert.match(markdown, /负责 RAG 问答系统/);
+  assert.match(markdown, /对应 JD：RAG/);
+  assert.match(markdown, /## 待补充内容[\s\S]*\[待补充：移动端项目\]/);
+  assert.match(markdown, /## 事实风险/);
+});
+
+test('buildResumeComparisonMarkdown creates a local-only grounded report', () => {
+  const markdown = buildResumeComparisonMarkdown({
+    kind: 'grounded',
+    resumeFileName: 'resume.md',
+    jobTitle: '后端工程师',
+    generatedAt: '2026-06-09T10:00:00.000Z',
+    originalMarkdown: '## 技能\n\n- Java',
+    optimizedMarkdown: '## 技能\n\n- Java\n- Redis',
+    changeSummary: null,
+  });
+
+  assert.match(markdown, /^# 稳妥简历优化对比报告/m);
+  assert.match(markdown, /Redis/);
+  assert.match(markdown, /未提供优化原因/);
+  assert.match(markdown, /事实状态：需要核实/);
 });
