@@ -553,7 +553,9 @@
           ...diff,
           reason: bestMatch.change.reason,
           jdMatch: bestMatch.change.jdMatch,
-          factStatus: bestMatch.change.factStatus,
+          factStatus: ['added', 'removed', 'reordered'].includes(diff.type)
+            ? inferFactStatus(diff)
+            : bestMatch.change.factStatus,
         };
       }
 

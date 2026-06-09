@@ -905,6 +905,50 @@ test('mergeResumeChanges drops AI claims without a local text change', () => {
   assert.deepStrictEqual(result.changes, []);
 });
 
+test('mergeResumeChanges keeps local structural fact status authoritative', () => {
+  const result = mergeResumeChanges([
+    {
+      section: '技能',
+      type: 'added',
+      original: '',
+      optimized: '- Kubernetes',
+      originalIndex: -1,
+      optimizedIndex: 2,
+    },
+    {
+      section: '经历',
+      type: 'removed',
+      original: '- 旧项目',
+      optimized: '',
+      originalIndex: 3,
+      optimizedIndex: -1,
+    },
+  ], {
+    summary: [],
+    changes: [
+      {
+        section: '技能',
+        original: '',
+        optimized: '- Kubernetes',
+        reason: '匹配 JD 技能要求',
+        jdMatch: ['Kubernetes'],
+        factStatus: 'strengthened',
+      },
+      {
+        section: '经历',
+        original: '- 旧项目',
+        optimized: '',
+        reason: '降低无关信息',
+        jdMatch: [],
+        factStatus: 'rephrased',
+      },
+    ],
+  });
+
+  assert.strictEqual(result.changes[0].factStatus, 'risk');
+  assert.strictEqual(result.changes[1].factStatus, 'removed');
+});
+
 test('buildResumeComparisonMarkdown includes summary comparison and risk sections', () => {
   const markdown = buildResumeComparisonMarkdown({
     kind: 'aspirational',
