@@ -7,6 +7,7 @@ const {
   buildResumeRecord,
   sanitizeBaseName,
   buildDownloadFileName,
+  buildJobDownloadFileName,
   buildResumeOptimizationMessages,
   normalizeChangeSummary,
   parseAiResumeResponse,
@@ -89,6 +90,30 @@ test('buildDownloadFileName creates separate comparison report names', () => {
   );
 });
 
+test('buildJobDownloadFileName includes sanitized company and job title', () => {
+  const date = new Date('2026-06-09T10:00:00.000Z');
+
+  assert.strictEqual(
+    buildJobDownloadFileName(
+      '吴仁杨_本科_3年_AI应用工程师.md',
+      'aspirational',
+      '某某科技（上海）有限公司',
+      'AI/大模型应用工程师',
+      date
+    ),
+    '吴仁杨_本科_3年_AI应用工程师-某某科技（上海）有限公司-AI-大模型应用工程师-aspirational-2026-06-09.md'
+  );
+});
+
+test('buildJobDownloadFileName skips missing company and job title', () => {
+  const date = new Date('2026-06-09T10:00:00.000Z');
+
+  assert.strictEqual(
+    buildJobDownloadFileName('resume.md', 'grounded', '', '', date),
+    'resume-grounded-2026-06-09.md'
+  );
+});
+
 test('buildResumeOptimizationMessages creates system and user prompts for JD resume optimization', () => {
   const messages = buildResumeOptimizationMessages({
     pageTitle: 'Senior Frontend Engineer',
@@ -105,6 +130,7 @@ test('buildResumeOptimizationMessages creates system and user prompts for JD res
   assert.match(messages[0].content, /isLikelyJobDescription/);
   assert.match(messages[0].content, /confidence/);
   assert.match(messages[0].content, /jobTitle/);
+  assert.match(messages[0].content, /companyName/);
   assert.match(messages[0].content, /coreResponsibilities/);
   assert.match(messages[0].content, /requiredSkills/);
   assert.match(messages[0].content, /preferredSkills/);

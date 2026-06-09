@@ -237,16 +237,32 @@ function renderResumeOptimizationResult(data) {
   const resumeFileName = result.resumeFileName || savedResume?.fileName || 'resume.md';
   const originalResumeMarkdown = savedResume?.markdown || '';
   const generatedAt = new Date().toISOString();
-  const aspirationalName = resumeUtils.buildDownloadFileName(resumeFileName, 'aspirational');
-  const groundedName = resumeUtils.buildDownloadFileName(resumeFileName, 'grounded');
-  const analysisName = resumeUtils.buildDownloadFileName(resumeFileName, 'analysis');
-  const aspirationalComparisonName = resumeUtils.buildDownloadFileName(
+  const companyName = result.jdAnalysis?.companyName || '';
+  const jobTitle = result.jdAnalysis?.jobTitle || result.title || '';
+  const aspirationalName = resumeUtils.buildJobDownloadFileName(
     resumeFileName,
-    'aspirational-comparison'
+    'aspirational',
+    companyName,
+    jobTitle
   );
-  const groundedComparisonName = resumeUtils.buildDownloadFileName(
+  const groundedName = resumeUtils.buildJobDownloadFileName(
     resumeFileName,
-    'grounded-comparison'
+    'grounded',
+    companyName,
+    jobTitle
+  );
+  const analysisName = resumeUtils.buildDownloadFileName(resumeFileName, 'analysis');
+  const aspirationalComparisonName = resumeUtils.buildJobDownloadFileName(
+    resumeFileName,
+    'aspirational-comparison',
+    companyName,
+    jobTitle
+  );
+  const groundedComparisonName = resumeUtils.buildJobDownloadFileName(
+    resumeFileName,
+    'grounded-comparison',
+    companyName,
+    jobTitle
   );
 
   els.resumeResult.innerHTML = `
@@ -296,7 +312,7 @@ function renderResumeOptimizationResult(data) {
       originalMarkdown: originalResumeMarkdown,
       optimizedMarkdown: aspirationalMarkdown,
       changeSummary: result.aspirationalChangeSummary,
-      jobTitle: result.jdAnalysis?.jobTitle || result.title || '',
+      jobTitle,
       generatedAt,
     });
   });
@@ -308,7 +324,7 @@ function renderResumeOptimizationResult(data) {
       originalMarkdown: originalResumeMarkdown,
       optimizedMarkdown: groundedMarkdown,
       changeSummary: result.groundedChangeSummary,
-      jobTitle: result.jdAnalysis?.jobTitle || result.title || '',
+      jobTitle,
       generatedAt,
     });
   });
