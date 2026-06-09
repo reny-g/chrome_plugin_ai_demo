@@ -34,6 +34,8 @@ const els = {
 const resumeUtils = window.ResumeOptimizerUtils;
 let savedResume = null;
 let resumeGenerationSeq = 0;
+let resumeProgressTimer = null;
+const optimizeResumeButtonText = els.optimizeResumeBtn.textContent;
 
 // 初始化：从 storage 读默认 provider
 chrome.storage.local.get({ provider: 'openai' }).then((s) => {
@@ -136,6 +138,7 @@ async function handleResumeUpload(file) {
 
   savedResume = resumeUtils.buildResumeRecord(file.name, markdown);
   resumeGenerationSeq += 1;
+  stopResumeGenerationProgress();
   await chrome.storage.local.set({ [resumeUtils.RESUME_STORAGE_KEY]: savedResume });
   els.resumePreview.classList.add('hidden');
   els.resumePreview.textContent = '';
@@ -147,6 +150,7 @@ async function clearSavedResume() {
   await chrome.storage.local.remove(resumeUtils.RESUME_STORAGE_KEY);
   savedResume = null;
   resumeGenerationSeq += 1;
+  stopResumeGenerationProgress();
   renderResumeState();
   els.resumeResult.classList.add('hidden');
   els.resumeResult.innerHTML = '';
@@ -171,7 +175,8 @@ async function runResumeOptimization() {
   els.optimizeResumeBtn.disabled = true;
   els.resumeResult.classList.add('hidden');
   els.resumeResult.innerHTML = '';
-  showStatus('正在读取当前网页并生成简历优化...', 'loading');
+  startResumeGenerationProgress();
+  els.optimizeResumeBtn.textContent = '正在生成…';
 
   try {
     const response = await chrome.runtime.sendMessage({ type: 'OPTIMIZE_RESUME_FOR_ACTIVE_TAB' });
@@ -184,9 +189,54 @@ async function runResumeOptimization() {
     showStatus('生成简历优化失败：' + (error?.message || error), 'error');
   } finally {
     if (requestSeq === resumeGenerationSeq) {
+      stopResumeGenerationProgress();
       els.optimizeResumeBtn.disabled = !savedResume?.markdown;
     }
   }
+}
+
+function startResumeGenerationProgress() {
+  stopResumeGenerationProgress();
+  const startedAt = Date.now();
+  const renderProgress = () => {
+    const progress = resumeUtils.buildResumeGenerationProgress(Date.now() - startedAt);
+    showResumeGenerationProgress(progress);
+  };
+
+  renderProgress();
+  resumeProgressTimer = setInterval(renderProgress, 1000);
+}
+
+function stopResumeGenerationProgress() {
+  if (resumeProgressTimer !== null) {
+    clearInterval(resumeProgressTimer);
+    resumeProgressTimer = null;
+  }
+  els.optimizeResumeBtn.textContent = optimizeResumeButtonText;
+}
+
+function showResumeGenerationProgress(progress) {
+  const message = document.createElement('div');
+  message.className = 'generation-progress-message';
+  message.textContent = progress.message;
+
+  const meta = document.createElement('div');
+  meta.className = 'generation-progress-meta';
+  const elapsed = document.createElement('span');
+  elapsed.textContent = `已等待 ${progress.elapsedText}`;
+  const expectation = document.createElement('span');
+  expectation.textContent = '通常需要 1–3 分钟';
+  meta.append(elapsed, expectation);
+
+  const track = document.createElement('div');
+  track.className = 'generation-progress-track';
+  track.setAttribute('aria-hidden', 'true');
+  const bar = document.createElement('div');
+  bar.className = 'generation-progress-bar';
+  track.appendChild(bar);
+
+  els.status.replaceChildren(message, meta, track);
+  els.status.className = 'status loading';
 }
 
 function downloadMarkdown(fileName, markdown) {

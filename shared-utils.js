@@ -835,6 +835,27 @@
     ].join('\n');
   }
 
+  function buildResumeGenerationProgress(elapsedMs) {
+    const safeElapsedMs = Number.isFinite(elapsedMs) && elapsedMs > 0 ? elapsedMs : 0;
+    const elapsedSeconds = Math.floor(safeElapsedMs / 1000);
+    const minutes = Math.floor(elapsedSeconds / 60);
+    const seconds = elapsedSeconds % 60;
+    const elapsedText = minutes > 0
+      ? `${minutes} 分${seconds > 0 ? ` ${seconds} 秒` : ''}`
+      : `${seconds} 秒`;
+
+    let message = '正在读取当前网页和简历…';
+    if (elapsedSeconds >= 60) {
+      message = '仍在生成，复杂简历可能需要更长时间…';
+    } else if (elapsedSeconds >= 30) {
+      message = 'AI 正在生成两版优化简历…';
+    } else if (elapsedSeconds >= 10) {
+      message = '已提交给 AI，正在分析岗位要求…';
+    }
+
+    return { elapsedText, message };
+  }
+
   return {
     RESUME_STORAGE_KEY,
     validateMarkdownFileMeta,
@@ -855,5 +876,6 @@
     parseAiResumeResponse,
     normalizeResumeWarnings,
     buildAnalysisMarkdown,
+    buildResumeGenerationProgress,
   };
 }));

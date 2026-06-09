@@ -21,6 +21,7 @@ const {
   compareMarkdownDocuments,
   mergeResumeChanges,
   buildResumeComparisonMarkdown,
+  buildResumeGenerationProgress,
 } = require('../shared-utils');
 
 function test(name, fn) {
@@ -87,6 +88,31 @@ test('buildDownloadFileName creates separate comparison report names', () => {
     buildDownloadFileName('resume.md', 'grounded-comparison', date),
     'resume-grounded-comparison-2026-06-09.md'
   );
+});
+
+test('buildResumeGenerationProgress changes conservative status copy over time', () => {
+  assert.deepStrictEqual(buildResumeGenerationProgress(0), {
+    elapsedText: '0 秒',
+    message: '正在读取当前网页和简历…',
+  });
+  assert.strictEqual(
+    buildResumeGenerationProgress(10_000).message,
+    '已提交给 AI，正在分析岗位要求…'
+  );
+  assert.strictEqual(
+    buildResumeGenerationProgress(30_000).message,
+    'AI 正在生成两版优化简历…'
+  );
+  assert.strictEqual(
+    buildResumeGenerationProgress(60_000).message,
+    '仍在生成，复杂简历可能需要更长时间…'
+  );
+});
+
+test('buildResumeGenerationProgress formats elapsed minutes and clamps invalid input', () => {
+  assert.strictEqual(buildResumeGenerationProgress(84_900).elapsedText, '1 分 24 秒');
+  assert.strictEqual(buildResumeGenerationProgress(-1).elapsedText, '0 秒');
+  assert.strictEqual(buildResumeGenerationProgress(Number.NaN).elapsedText, '0 秒');
 });
 
 test('buildJobDownloadFileName includes sanitized company and job title', () => {

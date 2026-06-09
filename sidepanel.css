@@ -112,6 +112,43 @@ body {
 .status.error   { background: #ffebe9; color: #cf222e; border: 1px solid #ffcecb; }
 .status.success { background: #dafbe1; color: #116329; border: 1px solid #aceebb; }
 .status.hidden  { display: none; }
+.generation-progress-message {
+  font-weight: 600;
+  line-height: 1.5;
+}
+.generation-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 5px;
+  color: #57606a;
+  font-size: 12px;
+}
+.generation-progress-track {
+  height: 4px;
+  margin-top: 9px;
+  overflow: hidden;
+  background: #b6e3ff;
+  border-radius: 999px;
+}
+.generation-progress-bar {
+  width: 40%;
+  height: 100%;
+  background: #0969da;
+  border-radius: inherit;
+  animation: generation-progress-slide 1.4s ease-in-out infinite;
+}
+@keyframes generation-progress-slide {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(360%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .generation-progress-bar {
+    width: 100%;
+    animation: none;
+    opacity: 0.55;
+  }
+}
 
 .result-area {
   margin: 12px 16px;
