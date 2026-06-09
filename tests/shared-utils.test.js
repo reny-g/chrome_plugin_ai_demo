@@ -9,6 +9,9 @@ const {
   parseAiResumeResponse,
   normalizeResumeWarnings,
   buildAnalysisMarkdown,
+  buildResumeChatCompletionBody,
+  readChatCompletionResult,
+  formatAiServiceError,
 } = require('../shared-utils');
 
 function test(name, fn) {
@@ -90,6 +93,54 @@ test('buildResumeOptimizationMessages creates system and user prompts for JD res
   assert.match(messages[1].content, /React, Chrome Extension, and accessibility/);
   assert.match(messages[1].content, /# Resume/);
   assert.match(messages[1].content, /Built browser extension features/);
+});
+
+test('buildResumeChatCompletionBody requests enough output tokens for two complete resumes', () => {
+  const body = buildResumeChatCompletionBody({
+    model: 'doubao-seed-2.0-pro',
+    messages: [{ role: 'user', content: 'Generate resumes' }],
+  });
+
+  assert.strictEqual(body.model, 'doubao-seed-2.0-pro');
+  assert.strictEqual(body.max_tokens, 16384);
+  assert.strictEqual(body.temperature, 0.2);
+  assert.strictEqual(body.stream, false);
+});
+
+test('readChatCompletionResult preserves finish reason and token usage', () => {
+  const result = readChatCompletionResult({
+    choices: [{
+      finish_reason: 'length',
+      message: { content: '{"incomplete":' },
+    }],
+    usage: {
+      prompt_tokens: 3000,
+      completion_tokens: 4096,
+      total_tokens: 7096,
+    },
+  });
+
+  assert.deepStrictEqual(result, {
+    content: '{"incomplete":',
+    finishReason: 'length',
+    usage: {
+      prompt_tokens: 3000,
+      completion_tokens: 4096,
+      total_tokens: 7096,
+    },
+  });
+});
+
+test('formatAiServiceError always includes finish_reason and usage when available', () => {
+  const message = formatAiServiceError('AI 输出被截断', 'length', {
+    completion_tokens: 4096,
+    total_tokens: 7096,
+  });
+
+  assert.match(message, /finish_reason=length/);
+  assert.match(message, /completion_tokens=4096/);
+  assert.match(message, /total_tokens=7096/);
+  assert.match(formatAiServiceError('HTTP 500'), /finish_reason=unknown/);
 });
 
 test('parseAiResumeResponse parses direct JSON', () => {

@@ -128,21 +128,55 @@ async function handleResumeOptimization() {
   );
   if (resumeContent.truncated) truncationWarnings.push(resumeContent.warning);
 
-  const raw = await optimizeResumeWithOpenAI({
+  const aiResult = await optimizeResumeWithOpenAI({
     pageTitle: pageData.title,
     pageUrl: pageData.url,
     pageContent: pageContent.text,
     resumeMarkdown: resumeContent.text,
     settings,
   });
-  const parsed = utils.parseAiResumeResponse(raw);
+  const raw = aiResult.content;
 
-  if (!parsed.ok) {
+  if (aiResult.finishReason === 'length') {
+    const error = utils.formatAiServiceError(
+      'AI 输出达到长度限制，返回内容被截断。请重试或缩短输入内容',
+      aiResult.finishReason,
+      aiResult.usage
+    );
+    console.error('[bg] resume optimization response truncated', {
+      finish_reason: aiResult.finishReason,
+      usage: aiResult.usage,
+      outputLength: raw.length,
+    });
     return {
       title: pageData.title,
       url: pageData.url,
       provider,
+      parseError: error,
+      rawOutput: raw,
+      warnings: truncationWarnings,
+    };
+  }
+
+  const parsed = utils.parseAiResumeResponse(raw);
+
+  if (!parsed.ok) {
+    const error = utils.formatAiServiceError(
+      parsed.error,
+      aiResult.finishReason,
+      aiResult.usage
+    );
+    console.error('[bg] resume optimization response parse failed', {
+      finish_reason: aiResult.finishReason,
+      usage: aiResult.usage,
+      outputLength: raw.length,
       parseError: parsed.error,
+    });
+    return {
+      title: pageData.title,
+      url: pageData.url,
+      provider,
+      parseError: error,
       rawOutput: raw,
       warnings: truncationWarnings,
     };
@@ -219,34 +253,64 @@ async function optimizeResumeWithOpenAI({ pageTitle, pageUrl, pageContent, resum
   const { apiBase, apiKey, model } = settings;
   if (!apiKey) throw new Error('请先在设置页填写 API Key');
 
+  const messages = utils.buildResumeOptimizationMessages({
+    pageTitle,
+    pageUrl,
+    pageContent,
+    resumeMarkdown,
+  });
   const resp = await fetch(`${apiBase.replace(/\/+$/, '')}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
+    body: JSON.stringify(utils.buildResumeChatCompletionBody({
       model,
-      messages: utils.buildResumeOptimizationMessages({
-        pageTitle,
-        pageUrl,
-        pageContent,
-        resumeMarkdown,
-      }),
-      temperature: 0.2,
-      stream: false,
-    }),
+      messages,
+    })),
   });
 
   if (!resp.ok) {
     const text = await resp.text().catch(() => '');
-    throw new Error(`AI 接口调用失败 (${resp.status}): ${text.slice(0, 200)}`);
+    let errorData = null;
+    try {
+      errorData = JSON.parse(text);
+    } catch (_) {
+      // Keep the original response text for non-JSON service errors.
+    }
+    const finishReason =
+      errorData?.choices?.[0]?.finish_reason ||
+      errorData?.error?.finish_reason ||
+      'unknown';
+    const errorMessage = utils.formatAiServiceError(
+      `AI 接口调用失败 (${resp.status}): ${text.slice(0, 200)}`,
+      finishReason,
+      errorData?.usage
+    );
+    console.error('[bg] resume optimization service error', {
+      status: resp.status,
+      finish_reason: finishReason,
+      usage: errorData?.usage || null,
+    });
+    throw new Error(errorMessage);
   }
 
   const data = await resp.json();
-  const content = data?.choices?.[0]?.message?.content;
-  if (!content) throw new Error('AI 响应格式异常，未拿到简历优化内容');
-  return content;
+  const result = utils.readChatCompletionResult(data);
+  if (!result.content) {
+    const errorMessage = utils.formatAiServiceError(
+      'AI 响应格式异常，未拿到简历优化内容',
+      result.finishReason,
+      result.usage
+    );
+    console.error('[bg] resume optimization empty response', {
+      finish_reason: result.finishReason,
+      usage: result.usage,
+    });
+    throw new Error(errorMessage);
+  }
+  return result;
 }
 
 async function loadSettings() {

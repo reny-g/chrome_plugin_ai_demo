@@ -100,6 +100,38 @@
     ];
   }
 
+  function buildResumeChatCompletionBody(input) {
+    const source = input || {};
+    return {
+      model: source.model,
+      messages: Array.isArray(source.messages) ? source.messages : [],
+      temperature: 0.2,
+      max_tokens: 16384,
+      stream: false,
+    };
+  }
+
+  function readChatCompletionResult(data) {
+    const choice = data?.choices?.[0] || {};
+    return {
+      content: choice?.message?.content || '',
+      finishReason: choice?.finish_reason || 'unknown',
+      usage: data?.usage || null,
+    };
+  }
+
+  function formatAiServiceError(message, finishReason, usage) {
+    const reason = finishReason || 'unknown';
+    const details = [`finish_reason=${reason}`];
+    if (usage && Number.isFinite(usage.completion_tokens)) {
+      details.push(`completion_tokens=${usage.completion_tokens}`);
+    }
+    if (usage && Number.isFinite(usage.total_tokens)) {
+      details.push(`total_tokens=${usage.total_tokens}`);
+    }
+    return `${message} (${details.join(', ')})`;
+  }
+
   function stripJsonFence(raw) {
     const text = String(raw || '').trim();
     const match = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
@@ -284,6 +316,9 @@
     sanitizeBaseName,
     buildDownloadFileName,
     buildResumeOptimizationMessages,
+    buildResumeChatCompletionBody,
+    readChatCompletionResult,
+    formatAiServiceError,
     parseAiResumeResponse,
     normalizeResumeWarnings,
     buildAnalysisMarkdown,
