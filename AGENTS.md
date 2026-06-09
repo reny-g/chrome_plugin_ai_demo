@@ -147,12 +147,14 @@ git diff --check
 - 开始修改前检查 `git status`，保留用户已有的未提交修改。
 - 不撤销、不覆盖、不顺带提交与当前任务无关的文件。
 - 每个完成的独立任务应创建一个清晰、可理解的 commit。
-- 提交信息使用简洁英文 Conventional Commit 风格，例如：
+- 提交信息使用 Conventional Commit 风格。类型前缀保持英文，冒号后的标题必须使用简洁中文。
+- 常用类型包括 `feat`、`fix`、`docs`、`test`、`refactor`、`chore` 和 `style`。
+- 除专有名词、代码标识符和协议名称外，不使用纯英文标题。例如：
 
 ```text
-feat: include job context in resume downloads
-fix: report truncated AI responses
-docs: update development workflow
+feat: 下载文件名增加公司和岗位名称
+fix: 修复 AI 响应截断后的解析错误
+docs: 完善项目开发规范
 ```
 
 - 提交前至少执行相关测试和 `git diff --cached --check`。
