@@ -199,6 +199,148 @@
     return { summary, changes };
   }
 
+  function stripMarkdownInlineFormatting(value) {
+    return String(value || '')
+      .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+      .replace(/(`+)(.*?)\1/g, '$2')
+      .replace(/(\*\*|__|~~)(.*?)\1/g, '$2')
+      .replace(/(^|[^\w])([*_])([^*_]+?)\2(?=$|[^\w])/g, '$1$3');
+  }
+
+  function normalizeMarkdownComparableText(value) {
+    const text = stripMarkdownInlineFormatting(
+      String(value || '')
+        .replace(/\r\n?/g, '\n')
+        .replace(/^\s{0,3}(?:#{1,6}\s+|>\s?|[-+*]\s+|\d+[.)]\s+)/gm, '')
+        .replace(/^\s{0,3}(?:`{3,}|~{3,}).*$/gm, '')
+    ).toLowerCase();
+
+    const characters = Array.from(text);
+    const isWordCharacter = (character) => (
+      Boolean(character) && /[\p{L}\p{N}]/u.test(character)
+    );
+    const keptTechnicalPunctuation = new Set(['.', '+', '#', '/', '-']);
+
+    return characters
+      .map((character, index) => {
+        if (!/[\p{P}\p{S}]/u.test(character)) return character;
+        if (!keptTechnicalPunctuation.has(character)) return '';
+
+        const previous = characters[index - 1];
+        const next = characters[index + 1];
+        if (character === '+' || character === '#') {
+          return isWordCharacter(previous) || previous === '+' ? character : '';
+        }
+        return isWordCharacter(previous) && isWordCharacter(next) ? character : '';
+      })
+      .join('')
+      .replace(/\s+/g, '');
+  }
+
+  function parseMarkdownBlocks(markdown) {
+    const lines = String(markdown || '').replace(/\r\n?/g, '\n').split('\n');
+    const headingPath = [];
+    const blocks = [];
+    let pendingType = null;
+    let pendingLines = [];
+    let codeFence = null;
+
+    const currentSection = () => (
+      headingPath.filter(Boolean).join(' > ') || '未分区'
+    );
+    const appendBlock = (type, text) => {
+      const value = text.trim();
+      if (!value) return;
+      blocks.push({
+        section: currentSection(),
+        type,
+        text: value,
+        normalized: normalizeMarkdownComparableText(value),
+        index: blocks.length,
+      });
+    };
+    const flushPending = () => {
+      if (!pendingType) return;
+      appendBlock(pendingType, pendingLines.join('\n'));
+      pendingType = null;
+      pendingLines = [];
+    };
+    const startOrAppend = (type, line) => {
+      if (pendingType !== type) {
+        flushPending();
+        pendingType = type;
+      }
+      pendingLines.push(line);
+    };
+
+    for (const line of lines) {
+      if (codeFence) {
+        pendingLines.push(line);
+        const closeMatch = line.match(/^\s{0,3}(`+|~+)\s*$/);
+        if (
+          closeMatch &&
+          closeMatch[1][0] === codeFence.character &&
+          closeMatch[1].length >= codeFence.length
+        ) {
+          flushPending();
+          codeFence = null;
+        }
+        continue;
+      }
+
+      const fenceMatch = line.match(/^\s{0,3}(`{3,}|~{3,})(.*)$/);
+      if (fenceMatch) {
+        flushPending();
+        pendingType = 'code';
+        pendingLines = [line];
+        codeFence = {
+          character: fenceMatch[1][0],
+          length: fenceMatch[1].length,
+        };
+        continue;
+      }
+
+      const headingMatch = line.match(/^\s{0,3}(#{1,6})[ \t]+(.+?)\s*#*\s*$/);
+      if (headingMatch) {
+        flushPending();
+        const level = headingMatch[1].length;
+        const heading = stripMarkdownInlineFormatting(headingMatch[2]).trim();
+        headingPath.length = level;
+        headingPath[level - 1] = heading;
+        continue;
+      }
+
+      if (!line.trim()) {
+        flushPending();
+        continue;
+      }
+
+      const listMatch = line.match(/^\s{0,3}(?:[-+*]|\d+[.)])[ \t]+(.*)$/);
+      if (listMatch) {
+        flushPending();
+        appendBlock('list', listMatch[1]);
+        continue;
+      }
+
+      const quoteMatch = line.match(/^\s{0,3}>[ \t]?(.*)$/);
+      if (quoteMatch) {
+        startOrAppend('quote', quoteMatch[1]);
+        continue;
+      }
+
+      if (/^\s*\|.*\|\s*$/.test(line)) {
+        startOrAppend('table', line.trim());
+        continue;
+      }
+
+      startOrAppend('paragraph', line.trim());
+    }
+
+    flushPending();
+    return blocks;
+  }
+
   function parseAiResumeResponse(raw) {
     let data;
     try {
@@ -383,6 +525,8 @@
     readChatCompletionResult,
     formatAiServiceError,
     normalizeChangeSummary,
+    normalizeMarkdownComparableText,
+    parseMarkdownBlocks,
     parseAiResumeResponse,
     normalizeResumeWarnings,
     buildAnalysisMarkdown,

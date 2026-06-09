@@ -15,6 +15,8 @@ const {
   buildResumeChatCompletionBody,
   readChatCompletionResult,
   formatAiServiceError,
+  normalizeMarkdownComparableText,
+  parseMarkdownBlocks,
 } = require('../shared-utils');
 
 function test(name, fn) {
@@ -514,4 +516,164 @@ test('buildAnalysisMarkdown renders object-shaped gap suggestions as human-reada
   assert.match(markdown, /The JD requires a complex frontend project/);
   assert.match(markdown, /Add a verifiable project example/);
   assert.doesNotMatch(markdown, /\[object Object\]/);
+});
+
+test('normalizeMarkdownComparableText ignores Markdown formatting, whitespace, case, and punctuation', () => {
+  const formatted = '**Senior Engineer**： React、Node.js，交付 90%！';
+  const plain = 'senior engineer react node.js 交付90%';
+
+  assert.strictEqual(
+    normalizeMarkdownComparableText(formatted),
+    normalizeMarkdownComparableText(plain)
+  );
+});
+
+test('normalizeMarkdownComparableText preserves numbers, dates, technical terms, and placeholder text', () => {
+  const normalized = normalizeMarkdownComparableText(
+    '- [待补充：2025-06 项目指标] 使用 C++ / Node.js 提升 80%'
+  );
+
+  assert.match(normalized, /待补充/);
+  assert.match(normalized, /2025-06/);
+  assert.match(normalized, /c\+\+/);
+  assert.match(normalized, /node\.js/);
+  assert.match(normalized, /80/);
+  assert.notStrictEqual(
+    normalized,
+    normalizeMarkdownComparableText(
+      '- [待补充：2025-06 项目指标] 使用 C++ / Node.js 提升 90%'
+    )
+  );
+});
+
+test('parseMarkdownBlocks tracks heading paths and parses each Markdown block type', () => {
+  const markdown = [
+    '# Resume',
+    '',
+    'Intro line',
+    'continued here.',
+    '',
+    '## Experience',
+    '- Built React UI',
+    '* Improved accessibility',
+    '+ Reduced load time',
+    '',
+    '> Led migration',
+    '> across teams',
+    '',
+    '| Skill | Level |',
+    '| --- | --- |',
+    '| React | Advanced |',
+    '',
+    '```js',
+    'const score = 90;',
+    '```',
+    '',
+    'After code.',
+  ].join('\n');
+
+  const blocks = parseMarkdownBlocks(markdown);
+
+  assert.deepStrictEqual(
+    blocks.map(({ section, type, text, index }) => ({ section, type, text, index })),
+    [
+      {
+        section: 'Resume',
+        type: 'paragraph',
+        text: 'Intro line\ncontinued here.',
+        index: 0,
+      },
+      {
+        section: 'Resume > Experience',
+        type: 'list',
+        text: 'Built React UI',
+        index: 1,
+      },
+      {
+        section: 'Resume > Experience',
+        type: 'list',
+        text: 'Improved accessibility',
+        index: 2,
+      },
+      {
+        section: 'Resume > Experience',
+        type: 'list',
+        text: 'Reduced load time',
+        index: 3,
+      },
+      {
+        section: 'Resume > Experience',
+        type: 'quote',
+        text: 'Led migration\nacross teams',
+        index: 4,
+      },
+      {
+        section: 'Resume > Experience',
+        type: 'table',
+        text: '| Skill | Level |\n| --- | --- |\n| React | Advanced |',
+        index: 5,
+      },
+      {
+        section: 'Resume > Experience',
+        type: 'code',
+        text: '```js\nconst score = 90;\n```',
+        index: 6,
+      },
+      {
+        section: 'Resume > Experience',
+        type: 'paragraph',
+        text: 'After code.',
+        index: 7,
+      },
+    ]
+  );
+  for (const block of blocks) {
+    assert.strictEqual(block.normalized, normalizeMarkdownComparableText(block.text));
+  }
+});
+
+test('parseMarkdownBlocks resets deeper heading paths and uses an unsectioned fallback', () => {
+  const blocks = parseMarkdownBlocks([
+    'Before headings.',
+    '',
+    '# Work',
+    '## Current',
+    '### Details',
+    'Deep paragraph.',
+    '',
+    '## Previous',
+    'Earlier paragraph.',
+  ].join('\n'));
+
+  assert.deepStrictEqual(
+    blocks.map(({ section, text }) => ({ section, text })),
+    [
+      { section: '未分区', text: 'Before headings.' },
+      { section: 'Work > Current > Details', text: 'Deep paragraph.' },
+      { section: 'Work > Previous', text: 'Earlier paragraph.' },
+    ]
+  );
+});
+
+test('parseMarkdownBlocks closes matching fences without consuming following content', () => {
+  const blocks = parseMarkdownBlocks([
+    '~~~text',
+    '``` is content inside tilde fence',
+    '~~~',
+    'Following paragraph.',
+  ].join('\n'));
+
+  assert.deepStrictEqual(
+    blocks.map(({ type, text }) => ({ type, text })),
+    [
+      {
+        type: 'code',
+        text: '~~~text\n``` is content inside tilde fence\n~~~',
+      },
+      {
+        type: 'paragraph',
+        text: 'Following paragraph.',
+      },
+    ]
+  );
 });
