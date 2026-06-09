@@ -67,53 +67,6 @@
     return [base, ...context, safeKind, formatDate(date)].join('-') + '.md';
   }
 
-  function buildResumeOptimizationMessages(input) {
-    const source = input || {};
-    const pageTitle = String(source.pageTitle || '未命名页面');
-    const pageUrl = String(source.pageUrl || '未知 URL');
-    const pageContent = String(source.pageContent || '');
-    const resumeMarkdown = String(source.resumeMarkdown || '');
-
-    const systemPrompt = [
-      '你是严谨的 JD 简历优化助手。',
-      '只输出有效 JSON，不要输出 Markdown 代码块、解释、前后缀或多余文本。',
-      '必须返回一个 JSON object，字段包括：jdAnalysis、aspirationalResumeMarkdown、groundedResumeMarkdown、aspirationalChangeSummary、groundedChangeSummary、gapSuggestions、warnings。',
-      'jdAnalysis 必须是 object，字段包括：isLikelyJobDescription(boolean)、confidence(high|medium|low)、companyName、jobTitle、coreResponsibilities、requiredSkills、preferredSkills、softSkills、keywords。',
-      'jdAnalysis 用于概括页面/JD 的公司名称、岗位、职责、硬性要求、加分项、关键词和内容可信度；无法确定公司名称时 companyName 返回未知公司。',
-      'aspirationalResumeMarkdown 和 groundedResumeMarkdown 都必须是完整 Markdown 简历，不是片段或修改建议。',
-      'aspirationalChangeSummary 和 groundedChangeSummary 必须分别说明对应版本的实质变化，结构为 {"summary": string[], "changes": change[]}。',
-      '每个 change 必须包含 section、original、optimized、reason、jdMatch(string[])、factStatus；section、original、optimized、reason 都必须是 string。',
-      'factStatus 只允许 rephrased、strengthened、reordered、removed、placeholder、risk。',
-      '只描述有实质变化的段落，每个版本的 changes 最多 20 项，summary 和 change 说明保持紧凑。',
-      '两份简历都必须尽量保留原简历的结构、标题层级、语气、排版风格和已有内容组织。',
-      'aspirationalResumeMarkdown 可以面向 JD 强化表达，但凡需要新增而原简历缺少证据的内容，必须使用 [待补充：具体内容] 占位。',
-      'groundedResumeMarkdown 不要添加原简历中不存在的事实，只能重排、改写、强调或删减原简历中已有事实。',
-      'gapSuggestions 必须列出为了匹配 JD 需要候选人真实补充或核实的信息。',
-      'warnings 必须提示弱 JD、非招聘页面、页面内容疑似截断、简历内容疑似截断、证据不足或事实风险。',
-    ].join('\n');
-
-    const userPrompt = [
-      '请基于以下当前页面内容/JD 候选文本和原始 Markdown 简历，生成两版优化后的完整 Markdown 简历。',
-      '',
-      '## 当前页面标题',
-      pageTitle,
-      '',
-      '## 当前页面 URL',
-      pageUrl,
-      '',
-      '## 当前页面内容/JD 候选文本',
-      pageContent,
-      '',
-      '## 原始 Markdown 简历',
-      resumeMarkdown,
-    ].join('\n');
-
-    return [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ];
-  }
-
   function buildResumeChatCompletionBody(input) {
     const source = input || {};
     return {
@@ -889,7 +842,6 @@
     sanitizeBaseName,
     buildDownloadFileName,
     buildJobDownloadFileName,
-    buildResumeOptimizationMessages,
     buildResumeChatCompletionBody,
     readChatCompletionResult,
     formatAiServiceError,

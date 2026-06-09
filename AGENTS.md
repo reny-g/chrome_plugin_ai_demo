@@ -33,7 +33,8 @@
 | `manifest.json` | 扩展声明、权限、版本和入口配置 |
 | `background.js` | Service Worker、消息路由、页面注入、远程 AI 请求和响应处理 |
 | `content.js` | 在网页上下文中提取标题、URL 和正文，不读取扩展设置，不调用 AI |
-| `shared-utils.js` | 可测试的纯逻辑：提示词、JSON 解析、文件名、Markdown 分块、差异计算和报告生成 |
+| `resume-prompts.js` | 可测试的简历优化提示词、输出契约和提示词版本 |
+| `shared-utils.js` | 可测试的纯逻辑：JSON 解析、文件名、Markdown 分块、差异计算和报告生成 |
 | `sidepanel.html` | 侧边栏结构 |
 | `sidepanel.css` | 侧边栏样式和响应式布局 |
 | `sidepanel.js` | UI 状态、简历本地管理、消息调用、结果渲染、复制和下载 |
@@ -48,6 +49,7 @@
 - `content.js` 只读取页面 DOM，不访问 `chrome.storage`，不持有 API Key，不调用 AI。
 - 远程 AI 请求统一放在 `background.js`，避免在页面上下文中暴露敏感设置。
 - `sidepanel.js` 负责交互和渲染，通过 `chrome.runtime.sendMessage` 调用后台能力。
+- `resume-prompts.js` 只负责提示词构建和版本管理，不读取存储、不调用 AI。
 - 可独立测试的数据转换和文本处理优先放入 `shared-utils.js`。
 - `options.js` 只负责设置读取、校验和保存。
 - 不把 API Key、完整简历或 AI 响应写入页面 DOM、控制台日志或 URL。
@@ -98,6 +100,9 @@
 
 ```powershell
 node .\tests\shared-utils.test.js
+node .\tests\resume-prompts.test.js
+node .\tests\background-contract.test.js
+node --check .\resume-prompts.js
 node --check .\shared-utils.js
 node --check .\background.js
 node --check .\sidepanel.js

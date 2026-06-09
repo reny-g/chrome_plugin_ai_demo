@@ -8,7 +8,6 @@ const {
   sanitizeBaseName,
   buildDownloadFileName,
   buildJobDownloadFileName,
-  buildResumeOptimizationMessages,
   normalizeChangeSummary,
   parseAiResumeResponse,
   normalizeResumeWarnings,
@@ -112,51 +111,6 @@ test('buildJobDownloadFileName skips missing company and job title', () => {
     buildJobDownloadFileName('resume.md', 'grounded', '', '', date),
     'resume-grounded-2026-06-09.md'
   );
-});
-
-test('buildResumeOptimizationMessages creates system and user prompts for JD resume optimization', () => {
-  const messages = buildResumeOptimizationMessages({
-    pageTitle: 'Senior Frontend Engineer',
-    pageUrl: 'https://example.com/jobs/frontend',
-    pageContent: 'We need React, Chrome Extension, and accessibility experience.',
-    resumeMarkdown: '# Resume\n\nBuilt browser extension features.',
-  });
-
-  assert.strictEqual(messages.length, 2);
-  assert.strictEqual(messages[0].role, 'system');
-  assert.strictEqual(messages[1].role, 'user');
-  assert.match(messages[0].content, /只输出有效 JSON/);
-  assert.match(messages[0].content, /不要添加原简历中不存在的事实/);
-  assert.match(messages[0].content, /isLikelyJobDescription/);
-  assert.match(messages[0].content, /confidence/);
-  assert.match(messages[0].content, /jobTitle/);
-  assert.match(messages[0].content, /companyName/);
-  assert.match(messages[0].content, /coreResponsibilities/);
-  assert.match(messages[0].content, /requiredSkills/);
-  assert.match(messages[0].content, /preferredSkills/);
-  assert.match(messages[0].content, /softSkills/);
-  assert.match(messages[0].content, /keywords/);
-  assert.match(messages[0].content, /aspirationalChangeSummary/);
-  assert.match(messages[0].content, /groundedChangeSummary/);
-  assert.match(messages[0].content, /summary/);
-  assert.match(messages[0].content, /changes/);
-  assert.match(messages[0].content, /section/);
-  assert.match(messages[0].content, /original/);
-  assert.match(messages[0].content, /optimized/);
-  assert.match(messages[0].content, /reason/);
-  assert.match(messages[0].content, /jdMatch/);
-  assert.match(messages[0].content, /factStatus/);
-  for (const status of ['rephrased', 'strengthened', 'reordered', 'removed', 'placeholder', 'risk']) {
-    assert.match(messages[0].content, new RegExp(status));
-  }
-  assert.match(messages[0].content, /20/);
-  assert.match(messages[0].content, /实质变化/);
-  assert.match(messages[0].content, /紧凑/);
-  assert.match(messages[1].content, /Senior Frontend Engineer/);
-  assert.match(messages[1].content, /https:\/\/example\.com\/jobs\/frontend/);
-  assert.match(messages[1].content, /React, Chrome Extension, and accessibility/);
-  assert.match(messages[1].content, /# Resume/);
-  assert.match(messages[1].content, /Built browser extension features/);
 });
 
 test('normalizeChangeSummary discards invalid summary entries and invalid changes', () => {

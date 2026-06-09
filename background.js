@@ -6,9 +6,9 @@
 
 // ============ 1. 点击图标打开侧边栏 ============
 try {
-  importScripts('shared-utils.js');
+  importScripts('resume-prompts.js', 'shared-utils.js');
 } catch (err) {
-  console.error('[bg] shared-utils load failed:', err);
+  console.error('[bg] resume modules load failed:', err);
 }
 
 chrome.sidePanel
@@ -90,7 +90,9 @@ async function handleSummarize(options) {
 // ============ 5. OpenAI / Claude 兼容接口 ============
 async function handleResumeOptimization() {
   const utils = self.ResumeOptimizerUtils;
+  const prompts = self.ResumeOptimizerPrompts;
   if (!utils) throw new Error('简历优化工具未加载，请刷新扩展后重试');
+  if (!prompts) throw new Error('简历优化提示词未加载，请刷新扩展后重试');
 
   const settings = await loadSettings();
   const provider = settings.provider || 'openai';
@@ -136,6 +138,7 @@ async function handleResumeOptimization() {
     settings,
   });
   const raw = aiResult.content;
+  const promptVersion = prompts.RESUME_PROMPT_VERSION;
 
   if (aiResult.finishReason === 'length') {
     const error = utils.formatAiServiceError(
@@ -144,6 +147,7 @@ async function handleResumeOptimization() {
       aiResult.usage
     );
     console.error('[bg] resume optimization response truncated', {
+      prompt_version: prompts.RESUME_PROMPT_VERSION,
       finish_reason: aiResult.finishReason,
       usage: aiResult.usage,
       outputLength: raw.length,
@@ -152,7 +156,8 @@ async function handleResumeOptimization() {
       title: pageData.title,
       url: pageData.url,
       provider,
-      parseError: error,
+      promptVersion: prompts.RESUME_PROMPT_VERSION,
+      parseError: `${error}; prompt_version=${prompts.RESUME_PROMPT_VERSION}`,
       rawOutput: raw,
       warnings: truncationWarnings,
     };
@@ -167,6 +172,7 @@ async function handleResumeOptimization() {
       aiResult.usage
     );
     console.error('[bg] resume optimization response parse failed', {
+      prompt_version: prompts.RESUME_PROMPT_VERSION,
       finish_reason: aiResult.finishReason,
       usage: aiResult.usage,
       outputLength: raw.length,
@@ -176,7 +182,8 @@ async function handleResumeOptimization() {
       title: pageData.title,
       url: pageData.url,
       provider,
-      parseError: error,
+      promptVersion: prompts.RESUME_PROMPT_VERSION,
+      parseError: `${error}; prompt_version=${prompts.RESUME_PROMPT_VERSION}`,
       rawOutput: raw,
       warnings: truncationWarnings,
     };
@@ -186,6 +193,7 @@ async function handleResumeOptimization() {
     title: pageData.title,
     url: pageData.url,
     provider,
+    promptVersion,
     resumeFileName: resumeRecord?.fileName || '',
     jdAnalysis: parsed.jdAnalysis,
     aspirationalResumeMarkdown: parsed.aspirationalResumeMarkdown,
@@ -250,12 +258,16 @@ async function summarizeWithOpenAI(content, settings) {
 // ============ 6. 设置读取 ============
 async function optimizeResumeWithOpenAI({ pageTitle, pageUrl, pageContent, resumeMarkdown, settings }) {
   const utils = self.ResumeOptimizerUtils;
+  const prompts = self.ResumeOptimizerPrompts;
   if (!utils) throw new Error('简历优化工具未加载，请刷新扩展后重试');
+  if (!prompts) throw new Error('简历优化提示词未加载，请刷新扩展后重试');
 
   const { apiBase, apiKey, model } = settings;
-  if (!apiKey) throw new Error('请先在设置页填写 API Key');
+  if (!apiKey) {
+    throw new Error(`请先在设置页填写 API Key (prompt_version=${prompts.RESUME_PROMPT_VERSION})`);
+  }
 
-  const messages = utils.buildResumeOptimizationMessages({
+  const messages = prompts.buildResumeOptimizationMessages({
     pageTitle,
     pageUrl,
     pageContent,
@@ -291,11 +303,12 @@ async function optimizeResumeWithOpenAI({ pageTitle, pageUrl, pageContent, resum
       errorData?.usage
     );
     console.error('[bg] resume optimization service error', {
+      prompt_version: prompts.RESUME_PROMPT_VERSION,
       status: resp.status,
       finish_reason: finishReason,
       usage: errorData?.usage || null,
     });
-    throw new Error(errorMessage);
+    throw new Error(`${errorMessage}; prompt_version=${prompts.RESUME_PROMPT_VERSION}`);
   }
 
   const data = await resp.json();
@@ -307,10 +320,11 @@ async function optimizeResumeWithOpenAI({ pageTitle, pageUrl, pageContent, resum
       result.usage
     );
     console.error('[bg] resume optimization empty response', {
+      prompt_version: prompts.RESUME_PROMPT_VERSION,
       finish_reason: result.finishReason,
       usage: result.usage,
     });
-    throw new Error(errorMessage);
+    throw new Error(`${errorMessage}; prompt_version=${prompts.RESUME_PROMPT_VERSION}`);
   }
   return result;
 }
