@@ -211,6 +211,7 @@
   function normalizeMarkdownComparableText(value) {
     const text = stripMarkdownInlineFormatting(
       String(value || '')
+        .normalize('NFC')
         .replace(/\r\n?/g, '\n')
         .replace(/^\s{0,3}(?:#{1,6}\s+|>\s?|[-+*]\s+|\d+[.)]\s+)/gm, '')
         .replace(/^\s{0,3}(?:`{3,}|~{3,}).*$/gm, '')
@@ -233,7 +234,8 @@
           return isWordCharacter(previous) || previous === '+' ? character : '';
         }
         if (character === '.') {
-          const isDotNetPrefix = text.slice(index).match(/^\.net\b/i);
+          const isDotNetPrefix = characters.slice(index, index + 4).join('') === '.net'
+            && !isWordCharacter(characters[index + 4]);
           return isDotNetPrefix || (isWordCharacter(previous) && isWordCharacter(next))
             ? character
             : '';
@@ -255,6 +257,12 @@
     let pendingLines = [];
     let codeFence = null;
 
+    const isTableDelimiterRow = (line) => {
+      const trimmed = line.trim().replace(/^\|/, '').replace(/\|$/, '');
+      const cells = trimmed.split('|').map((cell) => cell.trim());
+      return cells.length >= 2 && cells.every((cell) => /^:?-{3,}:?$/.test(cell));
+    };
+    const isTableRow = (line) => line.includes('|') && Boolean(line.trim());
     const currentSection = () => (
       headingPath.filter(Boolean).join(' / ') || '未分区'
     );
@@ -283,7 +291,8 @@
       pendingLines.push(line);
     };
 
-    for (const line of lines) {
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+      const line = lines[lineIndex];
       if (codeFence) {
         pendingLines.push(line);
         const closeMatch = line.match(/^\s{0,3}(`+|~+)\s*$/);
@@ -310,11 +319,13 @@
         continue;
       }
 
-      const headingMatch = line.match(/^\s{0,3}(#{1,6})[ \t]+(.+?)\s*#*\s*$/);
+      const headingMatch = line.match(/^\s{0,3}(#{1,6})[ \t]+(.+?)\s*$/);
       if (headingMatch) {
         flushPending();
         const level = headingMatch[1].length;
-        const heading = stripMarkdownInlineFormatting(headingMatch[2]).trim();
+        const heading = stripMarkdownInlineFormatting(
+          headingMatch[2].replace(/[ \t]+#+[ \t]*$/, '')
+        ).trim();
         headingPath.length = level;
         headingPath[level - 1] = heading;
         continue;
@@ -328,7 +339,13 @@
       const listMatch = line.match(/^\s{0,3}(?:[-+*]|\d+[.)])[ \t]+(.*)$/);
       if (listMatch) {
         flushPending();
-        appendBlock('list', line);
+        pendingType = 'list';
+        pendingLines = [line];
+        continue;
+      }
+
+      if (pendingType === 'list' && /^(?: {2,}|\t)\S/.test(line)) {
+        pendingLines.push(line);
         continue;
       }
 
@@ -338,8 +355,20 @@
         continue;
       }
 
-      if (/^\s*\|.*\|\s*$/.test(line)) {
-        startOrAppend('table', line.trim());
+      if (
+        isTableRow(line) &&
+        lineIndex + 1 < lines.length &&
+        isTableDelimiterRow(lines[lineIndex + 1])
+      ) {
+        flushPending();
+        const tableLines = [line, lines[lineIndex + 1]];
+        lineIndex += 2;
+        while (lineIndex < lines.length && isTableRow(lines[lineIndex])) {
+          tableLines.push(lines[lineIndex]);
+          lineIndex += 1;
+        }
+        lineIndex -= 1;
+        appendBlock('table', tableLines.join('\n'));
         continue;
       }
 

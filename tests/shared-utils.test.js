@@ -556,6 +556,13 @@ test('normalizeMarkdownComparableText ignores prose hyphens like whitespace', ()
   );
 });
 
+test('normalizeMarkdownComparableText treats canonically equivalent Unicode as equal', () => {
+  assert.strictEqual(
+    normalizeMarkdownComparableText('Caf\u00e9'),
+    normalizeMarkdownComparableText('Cafe\u0301')
+  );
+});
+
 test('parseMarkdownBlocks tracks heading paths and parses each Markdown block type', () => {
   const markdown = [
     '# Resume',
@@ -640,6 +647,75 @@ test('parseMarkdownBlocks tracks heading paths and parses each Markdown block ty
   for (const block of blocks) {
     assert.strictEqual(block.normalized, normalizeMarkdownComparableText(block.text));
   }
+});
+
+test('parseMarkdownBlocks preserves C# headings and removes spaced closing hashes', () => {
+  const blocks = parseMarkdownBlocks([
+    '## C#',
+    'Language experience.',
+    '',
+    '## Title ##',
+    'Regular section.',
+  ].join('\n'));
+
+  assert.deepStrictEqual(
+    blocks.map(({ section, text }) => ({ section, text })),
+    [
+      { section: 'C#', text: 'Language experience.' },
+      { section: 'Title', text: 'Regular section.' },
+    ]
+  );
+});
+
+test('parseMarkdownBlocks keeps indented continuation lines in the same list block', () => {
+  const blocks = parseMarkdownBlocks([
+    '- Led migration',
+    '  across teams',
+    '- Shipped release',
+  ].join('\n'));
+
+  assert.deepStrictEqual(
+    blocks.map(({ type, text }) => ({ type, text })),
+    [
+      { type: 'list', text: '- Led migration\n  across teams' },
+      { type: 'list', text: '- Shipped release' },
+    ]
+  );
+});
+
+test('parseMarkdownBlocks recognizes GFM tables with optional outer pipes', () => {
+  const blocks = parseMarkdownBlocks([
+    'A | B',
+    '--- | ---',
+    'x | y',
+    '',
+    '| C | D',
+    '| --- | ---',
+    '| z | w',
+  ].join('\n'));
+
+  assert.deepStrictEqual(
+    blocks.map(({ type, text }) => ({ type, text })),
+    [
+      { type: 'table', text: 'A | B\n--- | ---\nx | y' },
+      { type: 'table', text: '| C | D\n| --- | ---\n| z | w' },
+    ]
+  );
+});
+
+test('parseMarkdownBlocks requires a delimiter row before treating pipes as a table', () => {
+  const blocks = parseMarkdownBlocks([
+    'Use React | Vue based on the project.',
+    'This remains prose.',
+  ].join('\n'));
+
+  assert.deepStrictEqual(
+    blocks.map(({ type, text }) => ({ type, text })),
+    [{
+      type: 'paragraph',
+      text: 'Use React | Vue based on the project.\nThis remains prose.',
+    }]
+  );
 });
 
 test('parseMarkdownBlocks resets deeper heading paths and uses an unsectioned fallback', () => {
