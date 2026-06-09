@@ -1,36 +1,181 @@
-# Development Workflow
+# 项目开发约定
 
-## Default Delivery Mode
+## 1. 项目概况
 
-Use a lightweight, risk-based workflow by default.
+本项目是一个无构建流程的 Chrome Manifest V3 扩展，主要提供两种工作模式：
 
-1. Write one feature-level spec when requirements or behavior need design clarification.
-2. Write one feature-level implementation plan for multi-step work.
-3. Reuse the approved spec and plan across implementation tasks. Do not create a new spec or plan for every task.
-4. Use TDD for core logic, bug fixes, parsers, data transformations, contracts, concurrency, and other behavior with meaningful regression risk.
-5. Simple UI wiring, styling, labels, and mechanical integration do not require a forced RED/GREEN cycle when a focused syntax, unit, browser, or end-to-end check provides adequate evidence.
-6. Keep task commits small and independently understandable when practical.
-7. Perform local self-review and targeted verification after each task.
-8. Perform one full code review and one complete verification pass after the feature is integrated.
+- 网页摘要：读取当前网页正文并生成摘要。
+- 简历优化：读取本地保存的一份 Markdown 简历，根据当前网页中的招聘 JD 生成进阶简历、稳妥简历、分析建议和优化对比报告。
 
-## Agent Usage
+技术约束：
 
-Do not use a separate implementer, spec reviewer, and code-quality reviewer for every small task by default.
+- 使用原生 HTML、CSS 和 JavaScript，不引入 TypeScript、Webpack、Vite 或不必要的 npm 依赖。
+- 最低 Chrome 版本以 `manifest.json` 为准。
+- 远程 AI 使用 OpenAI 兼容接口；网页摘要还可以使用 Chrome 内置 AI。
+- 简历和 API Key 只保存在 `chrome.storage.local`。
 
-Use subagents when they materially help with:
+## 2. 指令与文档优先级
 
-- independent work that can run in parallel;
-- complex or high-risk implementation;
-- broad code review;
-- specialized investigation.
+开发时按以下顺序理解和执行要求：
 
-For straightforward sequential tasks, implement and review in the current session. Avoid repeated review loops that add cost without proportionate risk reduction.
+1. 系统、开发者和用户当前指令。
+2. 本文件 `AGENTS.md`。
+3. 已确认的功能 spec 和 implementation plan。
+4. `CLAUDE.md`、`TODO.md`、`CHANGELOG.md` 等项目文档。
+5. 现有代码和测试所体现的行为。
 
-## Verification
+文档与代码不一致时，不要静默选择。优先确认用户最新要求，并同步修正文档或测试。
 
-Claims must be supported by fresh evidence.
+## 3. 文件职责
 
-- Run focused tests while developing.
-- Run the complete relevant test suite before completion.
-- Verify browser-extension behavior in a real Chrome environment for user-facing workflows.
-- Preserve unrelated user changes and exclude them from feature commits.
+| 文件 | 职责 |
+| --- | --- |
+| `manifest.json` | 扩展声明、权限、版本和入口配置 |
+| `background.js` | Service Worker、消息路由、页面注入、远程 AI 请求和响应处理 |
+| `content.js` | 在网页上下文中提取标题、URL 和正文，不读取扩展设置，不调用 AI |
+| `shared-utils.js` | 可测试的纯逻辑：提示词、JSON 解析、文件名、Markdown 分块、差异计算和报告生成 |
+| `sidepanel.html` | 侧边栏结构 |
+| `sidepanel.css` | 侧边栏样式和响应式布局 |
+| `sidepanel.js` | UI 状态、简历本地管理、消息调用、结果渲染、复制和下载 |
+| `options.html/js` | API Provider、地址、Key 和模型配置 |
+| `tests/shared-utils.test.js` | Node.js 单元测试 |
+| `docs/` | 中文功能规格、实现计划和设计文档 |
+
+## 4. 架构边界
+
+必须保持以下职责边界：
+
+- `content.js` 只读取页面 DOM，不访问 `chrome.storage`，不持有 API Key，不调用 AI。
+- 远程 AI 请求统一放在 `background.js`，避免在页面上下文中暴露敏感设置。
+- `sidepanel.js` 负责交互和渲染，通过 `chrome.runtime.sendMessage` 调用后台能力。
+- 可独立测试的数据转换和文本处理优先放入 `shared-utils.js`。
+- `options.js` 只负责设置读取、校验和保存。
+- 不把 API Key、完整简历或 AI 响应写入页面 DOM、控制台日志或 URL。
+
+新增功能时优先复用现有消息协议、工具函数和 UI 模式，不为小需求创建新的抽象层。
+
+## 5. 数据与兼容性
+
+- 简历 MVP 只维护一份当前 Markdown 简历，支持上传、替换、查看和清除。
+- AI 返回结构发生扩展时，新字段应尽量设计为可选字段，兼容历史响应和第三方 OpenAI 兼容服务。
+- 两份优化简历必须保持完整 Markdown，并尽可能沿用原简历的标题层级、章节顺序和表达风格。
+- 稳妥简历不得虚构原简历中不存在的公司、项目、技能、日期、职责、年限或指标。
+- 进阶简历中没有事实依据的内容必须明确使用待补充提示，不能伪装成候选人的已有经历。
+- 下载文件名必须经过 Windows 和浏览器非法字符清洗。
+- 对 AI JSON 解析失败、输出截断和非预期 `finish_reason` 提供可诊断的错误信息。
+
+## 6. 默认开发流程
+
+使用与风险匹配的轻量流程，不要求每个小任务都重新编写 spec、plan 并执行完整 TDD。
+
+### 简单改动
+
+适用于文案、样式、小范围 UI 接线、文件名规则和机械性修改：
+
+1. 阅读相关代码和现有测试。
+2. 明确兼容行为和降级方案。
+3. 直接实现。
+4. 添加必要的回归测试，或执行针对性的语法、单元和浏览器验证。
+5. 自查差异后提交。
+
+### 中高风险改动
+
+适用于新工作流、消息协议、AI 返回契约、解析器、数据迁移、跨模块重构和复杂异步流程：
+
+1. 需求存在歧义时先补充一份功能级 spec。
+2. 多步骤实施时编写一份功能级 implementation plan。
+3. 同一功能的后续任务复用已确认的 spec 和 plan，不为每个 task 重复创建。
+4. 核心逻辑、缺陷修复、解析、数据转换和协议变更使用 TDD。
+5. 每个阶段执行局部验证，集成后进行一次完整代码审查和端到端验证。
+
+只有在并行调查、复杂实现、专项审查或高风险验证确实能提高效率时才使用子代理。简单串行任务由当前会话直接完成。
+
+## 7. 测试与验证
+
+所有完成声明必须基于当前代码的新鲜验证结果。
+
+常用检查：
+
+```powershell
+node .\tests\shared-utils.test.js
+node --check .\shared-utils.js
+node --check .\background.js
+node --check .\sidepanel.js
+node --check .\content.js
+node --check .\options.js
+git diff --check
+```
+
+验证范围按改动风险确定：
+
+- 纯函数和数据契约：增加或更新 `tests/shared-utils.test.js`。
+- UI 交互、存储、下载和 Chrome 消息：除单元测试外，使用真实 Chrome 验证。
+- 完整简历优化流程：验证网页提取、AI 请求、两份完整简历、建议、对比报告、复制和下载。
+- 错误路径：验证 API 错误、JSON 解析失败、输出截断、缺少配置以及非招聘页面。
+- 修改 `manifest.json` 后，验证其为合法 UTF-8 JSON，并重新加载扩展。
+
+进行浏览器验证时：
+
+- 优先连接并使用用户已经打开、已登录且配置好 API Key 的 Chrome。
+- 不要擅自新开独立浏览器环境，因为新环境没有用户现有的扩展存储和页面状态。
+- 重新加载扩展后，确认原侧边栏上下文可能失效，并重新打开对应页面。
+- 不关闭、刷新或导航用户已有标签页，除非测试确实需要且已说明影响。
+- 避免产生重复标签页；测试创建的临时页面应在完成后关闭。
+
+## 8. 编码规范
+
+- 所有文本文件使用 UTF-8，修改中文文件时必须检查是否出现乱码。
+- JavaScript 保持原生 ES2020+ 风格，沿用现有命名和组织方式。
+- 默认使用 `const`，仅在确实需要重新赋值时使用 `let`。
+- 系统边界必须处理错误，包括 Chrome API、页面注入、存储、网络请求和 AI 响应解析。
+- 纯逻辑避免依赖 DOM 和 Chrome API，以便使用 Node.js 测试。
+- 注释只解释不明显的约束、原因和风险，不复述代码本身。
+- 不进行与当前需求无关的重构、格式化或依赖升级。
+- UI 文案使用中文；代码标识符、协议字段和 Provider 值使用稳定的英文名称。
+- Provider 值统一使用 `openai` 和 `chrome-ai`，不要新增同义值。
+
+## 9. 安全要求
+
+- API Key 只能保存在 `chrome.storage.local`，不得写入仓库、日志、页面内容或错误报告。
+- 网页正文和简历属于敏感数据，只发送给用户配置并明确选择的 AI 服务。
+- 页面内容一律视为不可信输入，渲染前必须转义，不能直接注入未经处理的 HTML。
+- 下载报告使用纯文本 Markdown Blob，不把报告内容作为 HTML 执行。
+- 不扩大 `manifest.json` 权限，除非功能确实需要并已说明原因。
+
+## 10. Git 与提交
+
+- 开始修改前检查 `git status`，保留用户已有的未提交修改。
+- 不撤销、不覆盖、不顺带提交与当前任务无关的文件。
+- 每个完成的独立任务应创建一个清晰、可理解的 commit。
+- 提交信息使用简洁英文 Conventional Commit 风格，例如：
+
+```text
+feat: include job context in resume downloads
+fix: report truncated AI responses
+docs: update development workflow
+```
+
+- 提交前至少执行相关测试和 `git diff --cached --check`。
+- 当前仓库未配置远程地址时只 commit，不执行 push，也不要求用户临时配置远程仓库。
+- 除非用户明确要求，不使用破坏性 Git 命令，不修改用户自己的历史提交。
+
+## 11. 文档与版本
+
+- `docs/` 下新增或修改的 spec、plan 和设计文档必须使用中文。
+- 小改动不强制新增 spec 或 plan，但行为变化应通过测试、注释或现有文档得到体现。
+- 用户可见功能或重要修复需要更新 `CHANGELOG.md`。
+- 发布版本时同步更新 `manifest.json` 中的 `version` 和 `CHANGELOG.md`。
+- `TODO.md` 只记录未实施事项；功能完成后应更新或移除对应条目，但不要覆盖用户尚未整理的内容。
+
+## 12. 完成标准
+
+任务完成前确认：
+
+1. 实现符合用户最新需求和已有功能约束。
+2. 没有破坏网页摘要模式和简历优化模式。
+3. 相关单元测试、语法检查和差异检查通过。
+4. 用户可见流程在需要时已使用真实 Chrome 验证。
+5. 错误信息足以定位 Provider、`finish_reason`、解析或配置问题。
+6. 没有泄露 API Key、简历或网页敏感内容。
+7. 未提交或覆盖用户无关修改。
+8. 已创建范围清晰的 commit，并在最终回复中说明验证结果和未完成事项。
