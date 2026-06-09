@@ -178,7 +178,6 @@
       const reason = change.reason.trim();
       if (
         !section ||
-        (!original && !optimized) ||
         !reason ||
         !validFactStatuses.has(change.factStatus)
       ) {

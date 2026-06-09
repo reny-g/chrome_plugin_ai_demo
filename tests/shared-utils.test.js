@@ -167,7 +167,7 @@ test('normalizeChangeSummary falls back for invalid structures and limits change
   assert.strictEqual(normalizeChangeSummary({ summary: [], changes }).changes.length, 20);
 });
 
-test('normalizeChangeSummary preserves added and removed changes but rejects empty pairs', () => {
+test('normalizeChangeSummary preserves string original and optimized values including empty pairs', () => {
   const result = normalizeChangeSummary({
     summary: [],
     changes: [
@@ -214,6 +214,14 @@ test('normalizeChangeSummary preserves added and removed changes but rejects emp
       reason: 'The JD requests measurable impact',
       jdMatch: ['measurable impact'],
       factStatus: 'placeholder',
+    },
+    {
+      section: 'Experience',
+      original: '',
+      optimized: '',
+      reason: 'No content changed',
+      jdMatch: [],
+      factStatus: 'rephrased',
     },
   ]);
 });
