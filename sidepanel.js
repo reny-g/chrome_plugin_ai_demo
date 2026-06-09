@@ -235,9 +235,19 @@ function renderResumeOptimizationResult(data) {
   const aspirationalMarkdown = String(result.aspirationalResumeMarkdown || '');
   const groundedMarkdown = String(result.groundedResumeMarkdown || '');
   const resumeFileName = result.resumeFileName || savedResume?.fileName || 'resume.md';
+  const originalResumeMarkdown = savedResume?.markdown || '';
+  const generatedAt = new Date().toISOString();
   const aspirationalName = resumeUtils.buildDownloadFileName(resumeFileName, 'aspirational');
   const groundedName = resumeUtils.buildDownloadFileName(resumeFileName, 'grounded');
   const analysisName = resumeUtils.buildDownloadFileName(resumeFileName, 'analysis');
+  const aspirationalComparisonName = resumeUtils.buildDownloadFileName(
+    resumeFileName,
+    'aspirational-comparison'
+  );
+  const groundedComparisonName = resumeUtils.buildDownloadFileName(
+    resumeFileName,
+    'grounded-comparison'
+  );
 
   els.resumeResult.innerHTML = `
     <section class="result-block">
@@ -255,6 +265,7 @@ function renderResumeOptimizationResult(data) {
         <div class="action-row compact">
           <button id="copy-aspirational-btn" class="ghost-btn" type="button">复制</button>
           <button id="download-aspirational-btn" class="ghost-btn" type="button">下载</button>
+          <button id="download-aspirational-comparison-btn" class="ghost-btn" type="button">下载对比报告</button>
         </div>
       </div>
       <div class="markdown-body-lite">${renderMarkdown(aspirationalMarkdown || '暂无进阶简历内容。')}</div>
@@ -265,6 +276,7 @@ function renderResumeOptimizationResult(data) {
         <div class="action-row compact">
           <button id="copy-grounded-btn" class="ghost-btn" type="button">复制</button>
           <button id="download-grounded-btn" class="ghost-btn" type="button">下载</button>
+          <button id="download-grounded-comparison-btn" class="ghost-btn" type="button">下载对比报告</button>
         </div>
       </div>
       <div class="markdown-body-lite">${renderMarkdown(groundedMarkdown || '暂无稳妥简历内容。')}</div>
@@ -276,11 +288,52 @@ function renderResumeOptimizationResult(data) {
   bindResumeResultButton('copy-grounded-btn', () => copyResumeMarkdown(groundedMarkdown, '稳妥简历已复制。'));
   bindResumeResultButton('download-grounded-btn', () => downloadMarkdown(groundedName, groundedMarkdown));
   bindResumeResultButton('download-analysis-btn', () => downloadMarkdown(analysisName, analysisMarkdown));
+  bindResumeResultButton('download-aspirational-comparison-btn', () => {
+    downloadResumeComparisonReport({
+      kind: 'aspirational',
+      fileName: aspirationalComparisonName,
+      resumeFileName,
+      originalMarkdown: originalResumeMarkdown,
+      optimizedMarkdown: aspirationalMarkdown,
+      changeSummary: result.aspirationalChangeSummary,
+      jobTitle: result.jdAnalysis?.jobTitle || result.title || '',
+      generatedAt,
+    });
+  });
+  bindResumeResultButton('download-grounded-comparison-btn', () => {
+    downloadResumeComparisonReport({
+      kind: 'grounded',
+      fileName: groundedComparisonName,
+      resumeFileName,
+      originalMarkdown: originalResumeMarkdown,
+      optimizedMarkdown: groundedMarkdown,
+      changeSummary: result.groundedChangeSummary,
+      jobTitle: result.jdAnalysis?.jobTitle || result.title || '',
+      generatedAt,
+    });
+  });
 }
 
 function bindResumeResultButton(id, handler) {
   const button = els.resumeResult.querySelector(`#${id}`);
   if (button) button.addEventListener('click', handler);
+}
+
+function downloadResumeComparisonReport(input) {
+  try {
+    const report = resumeUtils.buildResumeComparisonMarkdown({
+      kind: input.kind,
+      resumeFileName: input.resumeFileName,
+      jobTitle: input.jobTitle,
+      generatedAt: input.generatedAt,
+      originalMarkdown: input.originalMarkdown,
+      optimizedMarkdown: input.optimizedMarkdown,
+      changeSummary: input.changeSummary,
+    });
+    downloadMarkdown(input.fileName, report);
+  } catch (error) {
+    showStatus('生成对比报告失败：' + (error?.message || error), 'error');
+  }
 }
 
 async function copyResumeMarkdown(markdown, successMessage) {

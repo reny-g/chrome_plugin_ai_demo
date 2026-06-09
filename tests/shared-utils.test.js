@@ -76,6 +76,19 @@ test('buildDownloadFileName includes sanitized base, kind, and date', () => {
   assert.strictEqual(fileName, 'my-bad-resume-analysis-2026-06-08.md');
 });
 
+test('buildDownloadFileName creates separate comparison report names', () => {
+  const date = new Date('2026-06-09T10:00:00.000Z');
+
+  assert.strictEqual(
+    buildDownloadFileName('resume.md', 'aspirational-comparison', date),
+    'resume-aspirational-comparison-2026-06-09.md'
+  );
+  assert.strictEqual(
+    buildDownloadFileName('resume.md', 'grounded-comparison', date),
+    'resume-grounded-comparison-2026-06-09.md'
+  );
+});
+
 test('buildResumeOptimizationMessages creates system and user prompts for JD resume optimization', () => {
   const messages = buildResumeOptimizationMessages({
     pageTitle: 'Senior Frontend Engineer',
