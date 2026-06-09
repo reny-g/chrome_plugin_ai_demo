@@ -1,4 +1,6 @@
 const assert = require('node:assert');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const {
   validateMarkdownFileMeta,
@@ -163,6 +165,73 @@ test('normalizeChangeSummary falls back for invalid structures and limits change
   }));
 
   assert.strictEqual(normalizeChangeSummary({ summary: [], changes }).changes.length, 20);
+});
+
+test('normalizeChangeSummary preserves added and removed changes but rejects empty pairs', () => {
+  const result = normalizeChangeSummary({
+    summary: [],
+    changes: [
+      {
+        section: 'Experience',
+        original: 'Removed claim',
+        optimized: '',
+        reason: 'Not relevant to the JD',
+        jdMatch: [],
+        factStatus: 'removed',
+      },
+      {
+        section: 'Experience',
+        original: '',
+        optimized: '[待补充：项目指标]',
+        reason: 'The JD requests measurable impact',
+        jdMatch: ['measurable impact'],
+        factStatus: 'placeholder',
+      },
+      {
+        section: 'Experience',
+        original: '',
+        optimized: '',
+        reason: 'No content changed',
+        jdMatch: [],
+        factStatus: 'rephrased',
+      },
+    ],
+  });
+
+  assert.deepStrictEqual(result.changes, [
+    {
+      section: 'Experience',
+      original: 'Removed claim',
+      optimized: '',
+      reason: 'Not relevant to the JD',
+      jdMatch: [],
+      factStatus: 'removed',
+    },
+    {
+      section: 'Experience',
+      original: '',
+      optimized: '[待补充：项目指标]',
+      reason: 'The JD requests measurable impact',
+      jdMatch: ['measurable impact'],
+      factStatus: 'placeholder',
+    },
+  ]);
+});
+
+test('background success response passes through both change summaries', () => {
+  const backgroundSource = fs.readFileSync(
+    path.join(__dirname, '..', 'background.js'),
+    'utf8'
+  );
+
+  assert.match(
+    backgroundSource,
+    /aspirationalChangeSummary:\s*parsed\.aspirationalChangeSummary/
+  );
+  assert.match(
+    backgroundSource,
+    /groundedChangeSummary:\s*parsed\.groundedChangeSummary/
+  );
 });
 
 test('buildResumeChatCompletionBody requests enough output tokens for two complete resumes', () => {

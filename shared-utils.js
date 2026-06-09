@@ -163,12 +163,25 @@
     for (const change of Array.isArray(value.changes) ? value.changes : []) {
       if (changes.length >= 20) break;
       if (!change || typeof change !== 'object' || Array.isArray(change)) continue;
+      if (
+        typeof change.section !== 'string' ||
+        typeof change.original !== 'string' ||
+        typeof change.optimized !== 'string' ||
+        typeof change.reason !== 'string'
+      ) {
+        continue;
+      }
 
-      const section = typeof change.section === 'string' ? change.section.trim() : '';
-      const original = typeof change.original === 'string' ? change.original.trim() : '';
-      const optimized = typeof change.optimized === 'string' ? change.optimized.trim() : '';
-      const reason = typeof change.reason === 'string' ? change.reason.trim() : '';
-      if (!section || !original || !optimized || !reason || !validFactStatuses.has(change.factStatus)) {
+      const section = change.section.trim();
+      const original = change.original.trim();
+      const optimized = change.optimized.trim();
+      const reason = change.reason.trim();
+      if (
+        !section ||
+        (!original && !optimized) ||
+        !reason ||
+        !validFactStatuses.has(change.factStatus)
+      ) {
         continue;
       }
 
