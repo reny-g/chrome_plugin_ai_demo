@@ -5,7 +5,7 @@
     root.ResumeOptimizerPrompts = factory();
   }
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
-  const RESUME_PROMPT_VERSION = '2.0.0';
+  const RESUME_PROMPT_VERSION = '2.1.0';
 
   function buildResumeOptimizationMessages(input) {
     const source = input || {};
@@ -53,8 +53,13 @@
       '每个 change 必须包含 section、original、optimized、reason、jdMatch(string[])、factStatus。',
       'factStatus 只允许 rephrased、strengthened、reordered、removed、placeholder、risk。',
       '只描述有实质变化的段落；每个版本的 changes 最多 20 项，summary 和 change 说明保持紧凑。',
-      'gapSuggestions 必须列出为了匹配 JD 需要候选人真实补充或核实的信息。',
-      'warnings 必须提示弱 JD、非招聘页面、输入截断、证据不足或事实风险。',
+      'gapSuggestions 用于列出 JD 明确要求但原简历缺少证据、信息不完整或确实无法判断是否满足的事项，并说明候选人需要真实补充或核实什么。',
+      'warnings 只用于会影响本次分析或生成结果可靠性的风险：页面可能不是招聘 JD、输入被截断或明显不完整、JD 与原简历存在明确且可引用的事实冲突、生成内容可能突破事实边界、输出不完整。',
+      '默认不要生成 warnings；没有满足上述条件的明确风险时必须返回空数组。',
+      '判断缺口或冲突前，必须先进行语义等价判断，包括同义表达、简称与全称、上下位概念、专业或技能的常见归属关系，以及简历中可以直接引用的等价证据。',
+      '不得仅因 JD 与简历的措辞、名称、粒度或表达顺序不完全一致而生成 warning，也不得把字面未命中直接视为证据不足。',
+      '如果只能确认信息缺失或无法判断是否满足 JD，但不能证明存在明确冲突，应写入 gapSuggestions，不得写入 warnings。',
+      '每条 warning 必须指出具体风险对象、输入中的直接依据以及它对本次生成可靠性的实际影响；无法提供这三项时不要输出该 warning。',
       '',
       '## 7. JSON 输出契约',
       '只输出一个有效 JSON object，不要输出 Markdown 代码块、解释、前后缀或多余文本。',
@@ -92,7 +97,7 @@
       '无法确定公司名称时 companyName 返回“未知公司”。',
       '',
       '## 8. 输出前检查',
-      '输出前在内部检查：稳妥版是否新增无依据事实；进阶版新增内容是否完整使用待补充占位符；是否改变公司、日期、岗位、年限、指标或成果归属；是否返回所有必填字段。',
+      '输出前在内部检查：稳妥版是否新增无依据事实；进阶版新增内容是否完整使用待补充占位符；是否改变公司、日期、岗位、年限、指标或成果归属；warnings 是否都达到明确风险门槛且没有把普通信息缺口误报为风险；是否返回所有必填字段。',
       '只输出最终 JSON，不输出检查过程或思考链。',
     ].join('\n');
 
