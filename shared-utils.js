@@ -79,7 +79,7 @@
       '只输出有效 JSON，不要输出 Markdown 代码块、解释、前后缀或多余文本。',
       '必须返回一个 JSON object，字段包括：jdAnalysis、aspirationalResumeMarkdown、groundedResumeMarkdown、aspirationalChangeSummary、groundedChangeSummary、gapSuggestions、warnings。',
       'jdAnalysis 必须是 object，字段包括：isLikelyJobDescription(boolean)、confidence(high|medium|low)、companyName、jobTitle、coreResponsibilities、requiredSkills、preferredSkills、softSkills、keywords。',
-      'jdAnalysis 用于概括页面/JD 的公司名称、岗位、职责、硬性要求、加分项、关键词和内容可信度；无法确定公司名称时 companyName 返回空字符串。',
+      'jdAnalysis 用于概括页面/JD 的公司名称、岗位、职责、硬性要求、加分项、关键词和内容可信度；无法确定公司名称时 companyName 返回未知公司。',
       'aspirationalResumeMarkdown 和 groundedResumeMarkdown 都必须是完整 Markdown 简历，不是片段或修改建议。',
       'aspirationalChangeSummary 和 groundedChangeSummary 必须分别说明对应版本的实质变化，结构为 {"summary": string[], "changes": change[]}。',
       '每个 change 必须包含 section、original、optimized、reason、jdMatch(string[])、factStatus；section、original、optimized、reason 都必须是 string。',
