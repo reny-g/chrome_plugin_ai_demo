@@ -17,6 +17,8 @@ const {
   formatAiServiceError,
   normalizeMarkdownComparableText,
   parseMarkdownBlocks,
+  textSimilarity,
+  compareMarkdownDocuments,
 } = require('../shared-utils');
 
 function test(name, fn) {
@@ -761,5 +763,72 @@ test('parseMarkdownBlocks closes matching fences without consuming following con
         text: 'Following paragraph.',
       },
     ]
+  );
+});
+
+test('textSimilarity scores related text above unrelated text', () => {
+  const related = textSimilarity(
+    '负责知识库问答系统开发',
+    '负责 RAG 知识库问答系统端到端开发'
+  );
+  const unrelated = textSimilarity(
+    '负责知识库问答系统开发',
+    '熟悉 Kubernetes 集群运维'
+  );
+
+  assert.ok(related > unrelated);
+  assert.ok(related > 0.5);
+});
+
+test('compareMarkdownDocuments ignores formatting-only changes', () => {
+  const diffs = compareMarkdownDocuments(
+    '## 技能\n\n- **Java**。\n- Redis',
+    '## 技能\n\n* Java\n* Redis'
+  );
+
+  assert.deepStrictEqual(diffs, []);
+});
+
+test('compareMarkdownDocuments reports modified added and removed blocks', () => {
+  const diffs = compareMarkdownDocuments(
+    '## 项目\n\n- 负责问答系统\n- 使用 Redis\n\n## 技能\n\n- Java',
+    '## 项目\n\n- 负责 RAG 问答系统端到端交付\n- 使用 Milvus\n\n## 技能\n\n- Java\n- Python'
+  );
+
+  assert.ok(diffs.some((entry) =>
+    entry.type === 'modified' &&
+    entry.original.includes('问答系统') &&
+    entry.optimized.includes('RAG')
+  ));
+  assert.ok(diffs.some((entry) =>
+    entry.type === 'removed' && entry.original.includes('Redis')
+  ));
+  assert.ok(diffs.some((entry) =>
+    entry.type === 'added' && entry.optimized.includes('Milvus')
+  ));
+  assert.ok(diffs.some((entry) =>
+    entry.type === 'added' && entry.optimized.includes('Python')
+  ));
+});
+
+test('compareMarkdownDocuments recognizes reordered unchanged blocks', () => {
+  const diffs = compareMarkdownDocuments(
+    '## 项目\n\n- Java 项目\n- RAG 项目',
+    '## 项目\n\n- RAG 项目\n- Java 项目'
+  );
+
+  assert.ok(diffs.some((entry) => entry.type === 'reordered'));
+  assert.ok(diffs.every((entry) => !['added', 'removed'].includes(entry.type)));
+});
+
+test('compareMarkdownDocuments does not mark unchanged trailing blocks reordered after insertion', () => {
+  const diffs = compareMarkdownDocuments(
+    '## 技能\n\n- Java\n- Redis',
+    '## 技能\n\n- Python\n- Java\n- Redis'
+  );
+
+  assert.deepStrictEqual(
+    diffs.map(({ type, optimized }) => ({ type, optimized })),
+    [{ type: 'added', optimized: '- Python' }]
   );
 });

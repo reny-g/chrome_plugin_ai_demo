@@ -379,6 +379,133 @@
     return blocks;
   }
 
+  function textBigrams(value) {
+    const text = normalizeMarkdownComparableText(value).replace(/\s+/g, '');
+    if (!text) return new Set();
+    if (text.length < 2) return new Set([text]);
+
+    const result = new Set();
+    for (let index = 0; index < text.length - 1; index += 1) {
+      result.add(text.slice(index, index + 2));
+    }
+    return result;
+  }
+
+  function textSimilarity(left, right) {
+    const leftTokens = textBigrams(left);
+    const rightTokens = textBigrams(right);
+    if (!leftTokens.size && !rightTokens.size) return 1;
+    if (!leftTokens.size || !rightTokens.size) return 0;
+
+    let intersection = 0;
+    for (const token of leftTokens) {
+      if (rightTokens.has(token)) intersection += 1;
+    }
+    return (2 * intersection) / (leftTokens.size + rightTokens.size);
+  }
+
+  function compareMarkdownDocuments(originalMarkdown, optimizedMarkdown) {
+    const originalBlocks = parseMarkdownBlocks(originalMarkdown);
+    const optimizedBlocks = parseMarkdownBlocks(optimizedMarkdown);
+    const matchedOriginal = new Set();
+    const matchedOptimized = new Set();
+    const exactPairs = [];
+    const diffs = [];
+
+    for (const optimized of optimizedBlocks) {
+      const original = originalBlocks.find((candidate) =>
+        !matchedOriginal.has(candidate.index) &&
+        candidate.type === optimized.type &&
+        candidate.normalized &&
+        candidate.normalized === optimized.normalized
+      );
+      if (!original) continue;
+
+      matchedOriginal.add(original.index);
+      matchedOptimized.add(optimized.index);
+      exactPairs.push({ original, optimized });
+    }
+
+    for (const pair of exactPairs) {
+      const isReordered = exactPairs.some((other) =>
+        other !== pair &&
+        Math.sign(pair.original.index - other.original.index) !==
+          Math.sign(pair.optimized.index - other.optimized.index)
+      );
+      if (!isReordered) continue;
+
+      diffs.push({
+        section: pair.optimized.section,
+        type: 'reordered',
+        original: pair.original.text,
+        optimized: pair.optimized.text,
+        originalIndex: pair.original.index,
+        optimizedIndex: pair.optimized.index,
+      });
+    }
+
+    for (const optimized of optimizedBlocks) {
+      if (matchedOptimized.has(optimized.index)) continue;
+
+      let bestMatch = null;
+      for (const original of originalBlocks) {
+        if (matchedOriginal.has(original.index) || original.type !== optimized.type) {
+          continue;
+        }
+
+        const similarity = textSimilarity(original.text, optimized.text);
+        const sectionBonus = original.section === optimized.section ? 0.12 : 0;
+        const score = similarity + sectionBonus;
+        if (!bestMatch || score > bestMatch.score) {
+          bestMatch = { original, score, similarity };
+        }
+      }
+
+      if (bestMatch && bestMatch.score >= 0.52 && bestMatch.similarity >= 0.4) {
+        matchedOriginal.add(bestMatch.original.index);
+        matchedOptimized.add(optimized.index);
+        diffs.push({
+          section: optimized.section,
+          type: 'modified',
+          original: bestMatch.original.text,
+          optimized: optimized.text,
+          originalIndex: bestMatch.original.index,
+          optimizedIndex: optimized.index,
+        });
+      }
+    }
+
+    for (const original of originalBlocks) {
+      if (matchedOriginal.has(original.index)) continue;
+      diffs.push({
+        section: original.section,
+        type: 'removed',
+        original: original.text,
+        optimized: '',
+        originalIndex: original.index,
+        optimizedIndex: -1,
+      });
+    }
+
+    for (const optimized of optimizedBlocks) {
+      if (matchedOptimized.has(optimized.index)) continue;
+      diffs.push({
+        section: optimized.section,
+        type: 'added',
+        original: '',
+        optimized: optimized.text,
+        originalIndex: -1,
+        optimizedIndex: optimized.index,
+      });
+    }
+
+    return diffs.sort((left, right) => {
+      const leftIndex = left.optimizedIndex >= 0 ? left.optimizedIndex : left.originalIndex;
+      const rightIndex = right.optimizedIndex >= 0 ? right.optimizedIndex : right.originalIndex;
+      return leftIndex - rightIndex;
+    });
+  }
+
   function parseAiResumeResponse(raw) {
     let data;
     try {
@@ -565,6 +692,8 @@
     normalizeChangeSummary,
     normalizeMarkdownComparableText,
     parseMarkdownBlocks,
+    textSimilarity,
+    compareMarkdownDocuments,
     parseAiResumeResponse,
     normalizeResumeWarnings,
     buildAnalysisMarkdown,
