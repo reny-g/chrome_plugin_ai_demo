@@ -6,6 +6,7 @@ const {
   sanitizeBaseName,
   buildDownloadFileName,
   buildResumeOptimizationMessages,
+  normalizeChangeSummary,
   parseAiResumeResponse,
   normalizeResumeWarnings,
   buildAnalysisMarkdown,
@@ -88,11 +89,80 @@ test('buildResumeOptimizationMessages creates system and user prompts for JD res
   assert.match(messages[0].content, /preferredSkills/);
   assert.match(messages[0].content, /softSkills/);
   assert.match(messages[0].content, /keywords/);
+  assert.match(messages[0].content, /aspirationalChangeSummary/);
+  assert.match(messages[0].content, /groundedChangeSummary/);
+  assert.match(messages[0].content, /summary/);
+  assert.match(messages[0].content, /changes/);
+  assert.match(messages[0].content, /section/);
+  assert.match(messages[0].content, /original/);
+  assert.match(messages[0].content, /optimized/);
+  assert.match(messages[0].content, /reason/);
+  assert.match(messages[0].content, /jdMatch/);
+  assert.match(messages[0].content, /factStatus/);
+  for (const status of ['rephrased', 'strengthened', 'reordered', 'removed', 'placeholder', 'risk']) {
+    assert.match(messages[0].content, new RegExp(status));
+  }
+  assert.match(messages[0].content, /20/);
+  assert.match(messages[0].content, /实质变化/);
+  assert.match(messages[0].content, /紧凑/);
   assert.match(messages[1].content, /Senior Frontend Engineer/);
   assert.match(messages[1].content, /https:\/\/example\.com\/jobs\/frontend/);
   assert.match(messages[1].content, /React, Chrome Extension, and accessibility/);
   assert.match(messages[1].content, /# Resume/);
   assert.match(messages[1].content, /Built browser extension features/);
+});
+
+test('normalizeChangeSummary discards invalid summary entries and invalid changes', () => {
+  const result = normalizeChangeSummary({
+    summary: [' Improved JD alignment ', '', 42, 'Added evidence'],
+    changes: [
+      {
+        section: ' Experience ',
+        original: 'Old wording',
+        optimized: 'New wording',
+        reason: 'Matches the role',
+        jdMatch: [' React ', '', 123],
+        factStatus: 'strengthened',
+      },
+      {
+        section: 'Skills',
+        original: 'JavaScript',
+        optimized: 'JavaScript and React',
+        reason: 'Keyword match',
+        jdMatch: ['React'],
+        factStatus: 'invented',
+      },
+      null,
+    ],
+  });
+
+  assert.deepStrictEqual(result, {
+    summary: ['Improved JD alignment', 'Added evidence'],
+    changes: [{
+      section: 'Experience',
+      original: 'Old wording',
+      optimized: 'New wording',
+      reason: 'Matches the role',
+      jdMatch: ['React'],
+      factStatus: 'strengthened',
+    }],
+  });
+});
+
+test('normalizeChangeSummary falls back for invalid structures and limits changes to 20', () => {
+  assert.deepStrictEqual(normalizeChangeSummary(null), { summary: [], changes: [] });
+  assert.deepStrictEqual(normalizeChangeSummary([]), { summary: [], changes: [] });
+
+  const changes = Array.from({ length: 21 }, (_, index) => ({
+    section: `Section ${index}`,
+    original: 'Original',
+    optimized: 'Optimized',
+    reason: 'Reason',
+    jdMatch: [],
+    factStatus: 'rephrased',
+  }));
+
+  assert.strictEqual(normalizeChangeSummary({ summary: [], changes }).changes.length, 20);
 });
 
 test('buildResumeChatCompletionBody requests enough output tokens for two complete resumes', () => {
@@ -177,6 +247,8 @@ test('parseAiResumeResponse parses direct JSON', () => {
     groundedResumeMarkdown: '# 稳健版',
     gapSuggestions: ['补充项目指标'],
     warnings: ['缺少岗位年限'],
+    aspirationalChangeSummary: { summary: [], changes: [] },
+    groundedChangeSummary: { summary: [], changes: [] },
   });
 });
 
@@ -187,6 +259,64 @@ test('parseAiResumeResponse parses fenced JSON', () => {
   assert.strictEqual(result.jdAnalysis.jobTitle, '后端工程师');
   assert.deepStrictEqual(result.gapSuggestions, []);
   assert.deepStrictEqual(result.warnings, []);
+  assert.deepStrictEqual(result.aspirationalChangeSummary, { summary: [], changes: [] });
+  assert.deepStrictEqual(result.groundedChangeSummary, { summary: [], changes: [] });
+});
+
+test('parseAiResumeResponse normalizes optional change summaries', () => {
+  const result = parseAiResumeResponse(JSON.stringify({
+    jdAnalysis: {
+      isLikelyJobDescription: true,
+      confidence: 'high',
+      jobTitle: 'Frontend Engineer',
+      coreResponsibilities: [],
+      requiredSkills: [],
+      preferredSkills: [],
+      softSkills: [],
+      keywords: [],
+    },
+    aspirationalResumeMarkdown: '# A',
+    groundedResumeMarkdown: '# G',
+    aspirationalChangeSummary: {
+      summary: [' Stronger impact '],
+      changes: [{
+        section: 'Experience',
+        original: 'Built UI',
+        optimized: 'Built accessible React UI',
+        reason: 'Aligns with JD',
+        jdMatch: [' React ', null],
+        factStatus: 'strengthened',
+      }],
+    },
+    groundedChangeSummary: {
+      summary: ['Invalid change removed'],
+      changes: [{
+        section: 'Experience',
+        original: 'Built UI',
+        optimized: 'Invented metric',
+        reason: 'Looks stronger',
+        jdMatch: ['Metrics'],
+        factStatus: 'invented',
+      }],
+    },
+  }));
+
+  assert.strictEqual(result.ok, true);
+  assert.deepStrictEqual(result.aspirationalChangeSummary, {
+    summary: ['Stronger impact'],
+    changes: [{
+      section: 'Experience',
+      original: 'Built UI',
+      optimized: 'Built accessible React UI',
+      reason: 'Aligns with JD',
+      jdMatch: ['React'],
+      factStatus: 'strengthened',
+    }],
+  });
+  assert.deepStrictEqual(result.groundedChangeSummary, {
+    summary: ['Invalid change removed'],
+    changes: [],
+  });
 });
 
 test('parseAiResumeResponse reports missing required resume fields', () => {

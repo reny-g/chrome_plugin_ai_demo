@@ -190,6 +190,8 @@ async function handleResumeOptimization() {
     jdAnalysis: parsed.jdAnalysis,
     aspirationalResumeMarkdown: parsed.aspirationalResumeMarkdown,
     groundedResumeMarkdown: parsed.groundedResumeMarkdown,
+    aspirationalChangeSummary: parsed.aspirationalChangeSummary,
+    groundedChangeSummary: parsed.groundedChangeSummary,
     gapSuggestions: parsed.gapSuggestions,
     warnings: utils.normalizeResumeWarnings(parsed.warnings, parsed.jdAnalysis, truncationWarnings),
   };
