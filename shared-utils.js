@@ -232,6 +232,15 @@
         if (character === '+' || character === '#') {
           return isWordCharacter(previous) || previous === '+' ? character : '';
         }
+        if (character === '.') {
+          const isDotNetPrefix = text.slice(index).match(/^\.net\b/i);
+          return isDotNetPrefix || (isWordCharacter(previous) && isWordCharacter(next))
+            ? character
+            : '';
+        }
+        if (character === '-') {
+          return /\d/.test(previous || '') && /\d/.test(next || '') ? character : '';
+        }
         return isWordCharacter(previous) && isWordCharacter(next) ? character : '';
       })
       .join('')
@@ -247,7 +256,7 @@
     let codeFence = null;
 
     const currentSection = () => (
-      headingPath.filter(Boolean).join(' > ') || '未分区'
+      headingPath.filter(Boolean).join(' / ') || '未分区'
     );
     const appendBlock = (type, text) => {
       const value = text.trim();
@@ -319,13 +328,13 @@
       const listMatch = line.match(/^\s{0,3}(?:[-+*]|\d+[.)])[ \t]+(.*)$/);
       if (listMatch) {
         flushPending();
-        appendBlock('list', listMatch[1]);
+        appendBlock('list', line);
         continue;
       }
 
       const quoteMatch = line.match(/^\s{0,3}>[ \t]?(.*)$/);
       if (quoteMatch) {
-        startOrAppend('quote', quoteMatch[1]);
+        startOrAppend('quote', line);
         continue;
       }
 

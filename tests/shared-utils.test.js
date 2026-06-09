@@ -530,19 +530,29 @@ test('normalizeMarkdownComparableText ignores Markdown formatting, whitespace, c
 
 test('normalizeMarkdownComparableText preserves numbers, dates, technical terms, and placeholder text', () => {
   const normalized = normalizeMarkdownComparableText(
-    '- [待补充：2025-06 项目指标] 使用 C++ / Node.js 提升 80%'
+    '- [待补充：2025-06 项目指标] 使用 .NET Node.js C++ C# React/Vue 提升 80%'
   );
 
   assert.match(normalized, /待补充/);
   assert.match(normalized, /2025-06/);
+  assert.match(normalized, /\.net/);
   assert.match(normalized, /c\+\+/);
+  assert.match(normalized, /c#/);
   assert.match(normalized, /node\.js/);
+  assert.match(normalized, /react\/vue/);
   assert.match(normalized, /80/);
   assert.notStrictEqual(
     normalized,
     normalizeMarkdownComparableText(
-      '- [待补充：2025-06 项目指标] 使用 C++ / Node.js 提升 90%'
+      '- [待补充：2025-06 项目指标] 使用 .NET Node.js C++ C# React/Vue 提升 90%'
     )
+  );
+});
+
+test('normalizeMarkdownComparableText ignores prose hyphens like whitespace', () => {
+  assert.strictEqual(
+    normalizeMarkdownComparableText('Delivered foo-bar capability.'),
+    normalizeMarkdownComparableText('Delivered foo bar capability')
   );
 });
 
@@ -554,12 +564,12 @@ test('parseMarkdownBlocks tracks heading paths and parses each Markdown block ty
     'continued here.',
     '',
     '## Experience',
-    '- Built React UI',
+    '- Java',
     '* Improved accessibility',
     '+ Reduced load time',
     '',
-    '> Led migration',
-    '> across teams',
+    '> 重点',
+    '> 跨团队协作',
     '',
     '| Skill | Level |',
     '| --- | --- |',
@@ -584,43 +594,43 @@ test('parseMarkdownBlocks tracks heading paths and parses each Markdown block ty
         index: 0,
       },
       {
-        section: 'Resume > Experience',
+        section: 'Resume / Experience',
         type: 'list',
-        text: 'Built React UI',
+        text: '- Java',
         index: 1,
       },
       {
-        section: 'Resume > Experience',
+        section: 'Resume / Experience',
         type: 'list',
-        text: 'Improved accessibility',
+        text: '* Improved accessibility',
         index: 2,
       },
       {
-        section: 'Resume > Experience',
+        section: 'Resume / Experience',
         type: 'list',
-        text: 'Reduced load time',
+        text: '+ Reduced load time',
         index: 3,
       },
       {
-        section: 'Resume > Experience',
+        section: 'Resume / Experience',
         type: 'quote',
-        text: 'Led migration\nacross teams',
+        text: '> 重点\n> 跨团队协作',
         index: 4,
       },
       {
-        section: 'Resume > Experience',
+        section: 'Resume / Experience',
         type: 'table',
         text: '| Skill | Level |\n| --- | --- |\n| React | Advanced |',
         index: 5,
       },
       {
-        section: 'Resume > Experience',
+        section: 'Resume / Experience',
         type: 'code',
         text: '```js\nconst score = 90;\n```',
         index: 6,
       },
       {
-        section: 'Resume > Experience',
+        section: 'Resume / Experience',
         type: 'paragraph',
         text: 'After code.',
         index: 7,
@@ -649,8 +659,8 @@ test('parseMarkdownBlocks resets deeper heading paths and uses an unsectioned fa
     blocks.map(({ section, text }) => ({ section, text })),
     [
       { section: '未分区', text: 'Before headings.' },
-      { section: 'Work > Current > Details', text: 'Deep paragraph.' },
-      { section: 'Work > Previous', text: 'Earlier paragraph.' },
+      { section: 'Work / Current / Details', text: 'Deep paragraph.' },
+      { section: 'Work / Previous', text: 'Earlier paragraph.' },
     ]
   );
 });
