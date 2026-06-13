@@ -77,18 +77,17 @@ toolbar click → side panel opens
 
 ## 文档规范
 
-- **specs 文档语言**：`docs/` 目录下所有 specs / 设计文档（包括 `docs/superpowers/specs/` 等）必须使用**中文**撰写，包括标题、正文、表格、注释、示例说明等
+- **specs 文档语言**：`docs/` 目录下所有 specs / plans /  设计文档（包括但不限于 `docs/superpowers/specs/` 等）必须使用**中文**撰写，包括标题、正文、表格、注释、示例说明等
 - 代码块内的代码与变量名保持英文，但代码块前后的说明文字必须中文
 - 已有英文 specs 文档在下次编辑时需逐步翻译为中文
 
 ## 已知待处理问题
 
-1. Provider 标签在 `sidepanel.js` 中仍有 `'claude'` 残留，需统一为 `openai`
-2. 默认 `apiBase` 指向 Doubao endpoint，settings 页应有清晰说明
-3. 长页面截断未在 UI 中提示用户
-4. 缺少手动测试步骤文档（`README.md`）
-5. Chrome 内置 Summarizer 主要支持英语，中文摘要质量有限，UI 中应注明
-6. 使用工具Get-Content时需要指定utf-8编码，否则会返回乱码内容
+1. 默认 `apiBase` 指向 Doubao endpoint，settings 页应有清晰说明
+2. 长页面截断未在 UI 中提示用户
+3. 缺少手动测试步骤文档（`README.md`）
+4. Chrome 内置 Summarizer 主要支持英语，中文摘要质量有限，UI 中应注明
+5. 使用工具Get-Content时需要指定utf-8编码，否则会返回乱码内容
 
 ## 手动验证清单
 

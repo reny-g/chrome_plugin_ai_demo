@@ -289,29 +289,30 @@ function renderResumeOptimizationResult(data) {
   const generatedAt = new Date().toISOString();
   const companyName = result.jdAnalysis?.companyName || '';
   const jobTitle = result.jdAnalysis?.jobTitle || result.title || '';
+  const fileCompanyName = companyName === '未知公司' ? '' : companyName;
   const aspirationalName = resumeUtils.buildJobDownloadFileName(
     resumeFileName,
     'aspirational',
-    companyName,
+    fileCompanyName,
     jobTitle
   );
   const groundedName = resumeUtils.buildJobDownloadFileName(
     resumeFileName,
     'grounded',
-    companyName,
+    fileCompanyName,
     jobTitle
   );
   const analysisName = resumeUtils.buildDownloadFileName(resumeFileName, 'analysis');
   const aspirationalComparisonName = resumeUtils.buildJobDownloadFileName(
     resumeFileName,
     'aspirational-comparison',
-    companyName,
+    fileCompanyName,
     jobTitle
   );
   const groundedComparisonName = resumeUtils.buildJobDownloadFileName(
     resumeFileName,
     'grounded-comparison',
-    companyName,
+    fileCompanyName,
     jobTitle
   );
 
@@ -530,8 +531,7 @@ function renderResult(data) {
   els.sourceContent.textContent = sourceContent || '未获取到可展示的原文。';
   els.sourceStats.textContent = sourceLength ? `${sourceLength.toLocaleString()} 字` : '';
   els.providerTag.textContent =
-    provider === 'chrome-ai' ? 'Chrome 内置 Summarizer' :
-    provider === 'claude' ? 'Claude' : 'OpenAI / Doubao';
+    provider === 'chrome-ai' ? 'Chrome 内置 Summarizer' : 'OpenAI / Doubao';
 }
 
 function showStatus(msg, kind) {

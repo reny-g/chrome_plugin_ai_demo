@@ -157,7 +157,7 @@ async function handleResumeOptimization() {
       url: pageData.url,
       provider,
       promptVersion: prompts.RESUME_PROMPT_VERSION,
-      parseError: `${error}; prompt_version=${prompts.RESUME_PROMPT_VERSION}`,
+      parseError: error,
       rawOutput: raw,
       warnings: truncationWarnings,
     };
@@ -183,7 +183,7 @@ async function handleResumeOptimization() {
       url: pageData.url,
       provider,
       promptVersion: prompts.RESUME_PROMPT_VERSION,
-      parseError: `${error}; prompt_version=${prompts.RESUME_PROMPT_VERSION}`,
+      parseError: error,
       rawOutput: raw,
       warnings: truncationWarnings,
     };
@@ -264,7 +264,8 @@ async function optimizeResumeWithOpenAI({ pageTitle, pageUrl, pageContent, resum
 
   const { apiBase, apiKey, model } = settings;
   if (!apiKey) {
-    throw new Error(`请先在设置页填写 API Key (prompt_version=${prompts.RESUME_PROMPT_VERSION})`);
+    console.error('[bg] missing API key', { prompt_version: prompts.RESUME_PROMPT_VERSION });
+    throw new Error('请先在设置页填写 API Key');
   }
 
   const messages = prompts.buildResumeOptimizationMessages({
@@ -308,7 +309,7 @@ async function optimizeResumeWithOpenAI({ pageTitle, pageUrl, pageContent, resum
       finish_reason: finishReason,
       usage: errorData?.usage || null,
     });
-    throw new Error(`${errorMessage}; prompt_version=${prompts.RESUME_PROMPT_VERSION}`);
+    throw new Error(errorMessage);
   }
 
   const data = await resp.json();
@@ -324,7 +325,7 @@ async function optimizeResumeWithOpenAI({ pageTitle, pageUrl, pageContent, resum
       finish_reason: result.finishReason,
       usage: result.usage,
     });
-    throw new Error(`${errorMessage}; prompt_version=${prompts.RESUME_PROMPT_VERSION}`);
+    throw new Error(errorMessage);
   }
   return result;
 }

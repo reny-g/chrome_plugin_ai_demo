@@ -29,6 +29,7 @@ test('builds resume messages through the prompt module', () => {
 test('returns and logs the prompt version without logging prompt content', () => {
   assert.match(source, /promptVersion:\s*prompts\.RESUME_PROMPT_VERSION/);
   assert.match(source, /prompt_version:\s*prompts\.RESUME_PROMPT_VERSION/);
-  assert.match(source, /parseError:\s*`\$\{error\}; prompt_version=\$\{prompts\.RESUME_PROMPT_VERSION\}`/);
+  assert.doesNotMatch(source, /parseError:.*prompt_version/);
+  assert.doesNotMatch(source, /throw new Error\(.*prompt_version/);
   assert.doesNotMatch(source, /console\.(?:log|error)\([^)]*messages/s);
 });
