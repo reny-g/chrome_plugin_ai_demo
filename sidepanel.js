@@ -4,8 +4,13 @@ const $ = (id) => document.getElementById(id);
 const els = {
   summaryModeTab: $('summary-mode-tab'),
   resumeModeTab: $('resume-mode-tab'),
+  historyModeTab: $('history-mode-tab'),
   summaryModePanel: $('summary-mode-panel'),
   resumeModePanel: $('resume-mode-panel'),
+  historyModePanel: $('history-mode-panel'),
+  summaryHistoryList: $('summary-history-list'),
+  resumeHistoryList: $('resume-history-list'),
+  clearHistoryBtn: $('clear-history-btn'),
   provider: $('provider-select'),
   btn: $('summarize-btn'),
   status: $('status'),
@@ -33,6 +38,7 @@ const els = {
 
 const resumeUtils = window.ResumeOptimizerUtils;
 let savedResume = null;
+let savedHistory = resumeUtils.createEmptyHistory();
 let resumeGenerationSeq = 0;
 let resumeProgressTimer = null;
 const optimizeResumeButtonText = els.optimizeResumeBtn.textContent;
@@ -44,6 +50,11 @@ chrome.storage.local.get({ provider: 'openai' }).then((s) => {
 
 els.summaryModeTab.addEventListener('click', () => setMode('summary'));
 els.resumeModeTab.addEventListener('click', () => setMode('resume'));
+els.historyModeTab.addEventListener('click', () => {
+  setMode('history');
+  renderHistoryLists();
+});
+els.clearHistoryBtn.addEventListener('click', clearHistory);
 
 els.provider.addEventListener('change', () => {
   chrome.storage.local.set({ provider: els.provider.value });
@@ -96,21 +107,130 @@ els.copySourceBtn.addEventListener('click', async () => {
 
 setMode('summary');
 loadSavedResume();
+loadHistory();
 
 function setMode(mode) {
-  const isResume = mode === 'resume';
-  els.summaryModeTab.classList.toggle('active', !isResume);
-  els.resumeModeTab.classList.toggle('active', isResume);
-  els.summaryModeTab.setAttribute('aria-selected', String(!isResume));
-  els.resumeModeTab.setAttribute('aria-selected', String(isResume));
-  els.summaryModePanel.classList.toggle('hidden', isResume);
-  els.resumeModePanel.classList.toggle('hidden', !isResume);
+  const tabs = {
+    summary: els.summaryModeTab,
+    resume: els.resumeModeTab,
+    history: els.historyModeTab,
+  };
+  const panels = {
+    summary: els.summaryModePanel,
+    resume: els.resumeModePanel,
+    history: els.historyModePanel,
+  };
+  for (const key of Object.keys(tabs)) {
+    const active = key === mode;
+    tabs[key].classList.toggle('active', active);
+    tabs[key].setAttribute('aria-selected', String(active));
+    panels[key].classList.toggle('hidden', !active);
+  }
 }
 
 async function loadSavedResume() {
   const stored = await chrome.storage.local.get({ [resumeUtils.RESUME_STORAGE_KEY]: null });
   savedResume = stored[resumeUtils.RESUME_STORAGE_KEY];
   renderResumeState();
+}
+
+async function loadHistory() {
+  const stored = await chrome.storage.local.get({ [resumeUtils.HISTORY_STORAGE_KEY]: null });
+  const value = stored[resumeUtils.HISTORY_STORAGE_KEY];
+  savedHistory = value && typeof value === 'object'
+    ? { ...resumeUtils.createEmptyHistory(), ...value }
+    : resumeUtils.createEmptyHistory();
+}
+
+async function recordHistory(mode, data) {
+  const entry = resumeUtils.buildHistoryEntry(mode, data);
+  savedHistory = resumeUtils.appendHistoryEntry(savedHistory, mode, entry);
+  try {
+    await chrome.storage.local.set({ [resumeUtils.HISTORY_STORAGE_KEY]: savedHistory });
+  } catch (error) {
+    showStatus('历史保存失败：' + (error?.message || error), 'error');
+  }
+}
+
+function renderHistoryLists() {
+  renderHistoryList(els.summaryHistoryList, 'summary');
+  renderHistoryList(els.resumeHistoryList, 'resume');
+}
+
+function renderHistoryList(container, mode) {
+  const entries = Array.isArray(savedHistory?.[mode]) ? savedHistory[mode] : [];
+  container.replaceChildren();
+
+  if (entries.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'history-empty';
+    empty.textContent = '暂无历史记录。';
+    container.appendChild(empty);
+    return;
+  }
+
+  for (const entry of entries) {
+    const item = document.createElement('div');
+    item.className = 'history-item';
+
+    const main = document.createElement('button');
+    main.type = 'button';
+    main.className = 'history-item-main';
+    const title = document.createElement('div');
+    title.className = 'history-item-title';
+    title.textContent = entry.title || '(无标题)';
+    const time = document.createElement('div');
+    time.className = 'history-item-time';
+    time.textContent = formatResumeTime(entry.createdAt);
+    main.append(title, time);
+    main.addEventListener('click', () => restoreHistoryEntry(mode, entry));
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'history-delete-btn';
+    del.title = '删除';
+    del.textContent = '×';
+    del.addEventListener('click', (event) => {
+      event.stopPropagation();
+      deleteHistoryEntry(mode, entry.id);
+    });
+
+    item.append(main, del);
+    container.appendChild(item);
+  }
+}
+
+function restoreHistoryEntry(mode, entry) {
+  if (mode === 'summary') {
+    setMode('summary');
+    renderResult(entry.data);
+    hideStatus();
+    els.result.classList.remove('hidden');
+  } else {
+    setMode('resume');
+    renderResumeOptimizationResult(entry.data);
+    hideStatus();
+  }
+}
+
+async function deleteHistoryEntry(mode, id) {
+  savedHistory = resumeUtils.removeHistoryEntry(savedHistory, mode, id);
+  try {
+    await chrome.storage.local.set({ [resumeUtils.HISTORY_STORAGE_KEY]: savedHistory });
+  } catch (error) {
+    showStatus('历史保存失败：' + (error?.message || error), 'error');
+  }
+  renderHistoryLists();
+}
+
+async function clearHistory() {
+  savedHistory = resumeUtils.createEmptyHistory();
+  try {
+    await chrome.storage.local.set({ [resumeUtils.HISTORY_STORAGE_KEY]: savedHistory });
+  } catch (error) {
+    showStatus('历史保存失败：' + (error?.message || error), 'error');
+  }
+  renderHistoryLists();
 }
 
 function renderResumeState() {
@@ -182,7 +302,9 @@ async function runResumeOptimization() {
     const response = await chrome.runtime.sendMessage({ type: 'OPTIMIZE_RESUME_FOR_ACTIVE_TAB' });
     if (requestSeq !== resumeGenerationSeq || requestResume !== savedResume) return;
     if (!response?.ok) throw new Error(response?.error || '未知错误');
-    renderResumeOptimizationResult(response.data || {});
+    const resumeData = response.data || {};
+    renderResumeOptimizationResult(resumeData);
+    if (!resumeData.parseError) recordHistory('resume', resumeData);
     hideStatus();
   } catch (error) {
     if (requestSeq !== resumeGenerationSeq || requestResume !== savedResume) return;
@@ -429,6 +551,7 @@ async function runSummarize() {
         : await summarizeWithRemoteAI();
 
     renderResult(response.data);
+    recordHistory('summary', response.data);
 
     hideStatus();
     els.result.classList.remove('hidden');

@@ -22,6 +22,10 @@ const {
   mergeResumeChanges,
   buildResumeComparisonMarkdown,
   buildResumeGenerationProgress,
+  createEmptyHistory,
+  buildHistoryEntry,
+  appendHistoryEntry,
+  removeHistoryEntry,
 } = require('../shared-utils');
 
 function test(name, fn) {
@@ -1001,4 +1005,59 @@ test('buildResumeComparisonMarkdown creates a local-only grounded report', () =>
   assert.match(markdown, /Redis/);
   assert.match(markdown, /未提供优化原因/);
   assert.match(markdown, /事实状态：需要核实/);
+});
+
+test('createEmptyHistory returns independent empty summary and resume buckets', () => {
+  const a = createEmptyHistory();
+  const b = createEmptyHistory();
+  assert.deepStrictEqual(a, { summary: [], resume: [] });
+  a.summary.push({ id: 'x' });
+  assert.strictEqual(b.summary.length, 0);
+});
+
+test('buildHistoryEntry captures mode, title, url, createdAt, and data', () => {
+  const data = { title: '岗位页面', url: 'https://example.com/job', summary: 'hi' };
+  const entry = buildHistoryEntry('summary', data);
+  assert.strictEqual(entry.mode, 'summary');
+  assert.strictEqual(entry.title, '岗位页面');
+  assert.strictEqual(entry.url, 'https://example.com/job');
+  assert.strictEqual(entry.data, data);
+  assert.match(entry.createdAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.ok(typeof entry.id === 'string' && entry.id.length > 0);
+});
+
+test('buildHistoryEntry falls back to url then placeholder for title', () => {
+  const urlOnly = buildHistoryEntry('resume', { url: 'https://example.com/a' });
+  assert.strictEqual(urlOnly.title, 'https://example.com/a');
+
+  const neither = buildHistoryEntry('resume', {});
+  assert.strictEqual(neither.title, '(无标题)');
+});
+
+test('appendHistoryEntry prepends newest and keeps at most five, without mutating input', () => {
+  let history = createEmptyHistory();
+  for (let i = 1; i <= 6; i += 1) {
+    history = appendHistoryEntry(history, 'summary', { id: `e${i}`, mode: 'summary' });
+  }
+  assert.strictEqual(history.summary.length, 5);
+  assert.strictEqual(history.summary[0].id, 'e6');
+  assert.strictEqual(history.summary[4].id, 'e2');
+
+  const frozen = createEmptyHistory();
+  const next = appendHistoryEntry(frozen, 'resume', { id: 'r1' });
+  assert.strictEqual(frozen.resume.length, 0);
+  assert.strictEqual(next.resume.length, 1);
+  assert.notStrictEqual(frozen, next);
+});
+
+test('removeHistoryEntry removes by id within a mode and leaves the other mode intact', () => {
+  let history = createEmptyHistory();
+  history = appendHistoryEntry(history, 'summary', { id: 's1' });
+  history = appendHistoryEntry(history, 'summary', { id: 's2' });
+  history = appendHistoryEntry(history, 'resume', { id: 'r1' });
+
+  const after = removeHistoryEntry(history, 'summary', 's1');
+  assert.deepStrictEqual(after.summary.map((e) => e.id), ['s2']);
+  assert.deepStrictEqual(after.resume.map((e) => e.id), ['r1']);
+  assert.strictEqual(history.summary.length, 2);
 });

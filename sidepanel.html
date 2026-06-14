@@ -14,6 +14,7 @@
   <nav class="mode-tabs" role="tablist" aria-label="功能模式">
     <button id="summary-mode-tab" class="mode-tab active" type="button" role="tab" aria-selected="true">网页摘要</button>
     <button id="resume-mode-tab" class="mode-tab" type="button" role="tab" aria-selected="false">简历优化</button>
+    <button id="history-mode-tab" class="mode-tab" type="button" role="tab" aria-selected="false">历史</button>
   </nav>
 
   <section class="global-controls">
@@ -82,6 +83,24 @@
     </section>
 
     <section id="resume-result-area" class="result-area hidden"></section>
+  </section>
+
+  <section id="history-mode-panel" class="mode-panel hidden">
+    <div class="section-heading">
+      <h2>历史记录</h2>
+      <button id="clear-history-btn" class="ghost-btn" type="button">清空全部</button>
+    </div>
+    <p class="muted">每种模式保留最近 5 条，点击任意记录可恢复到对应模式查看。历史只保存在本地。</p>
+
+    <section class="panel-block">
+      <div class="section-heading"><h2>网页摘要</h2></div>
+      <div id="summary-history-list" class="history-list"></div>
+    </section>
+
+    <section class="panel-block">
+      <div class="section-heading"><h2>简历优化</h2></div>
+      <div id="resume-history-list" class="history-list"></div>
+    </section>
   </section>
 
   <script src="shared-utils.js"></script>

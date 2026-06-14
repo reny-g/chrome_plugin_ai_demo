@@ -6,6 +6,41 @@
   }
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   const RESUME_STORAGE_KEY = 'resumeMarkdownProfile';
+  const HISTORY_STORAGE_KEY = 'history';
+  const HISTORY_LIMIT = 5;
+
+  function createEmptyHistory() {
+    return { summary: [], resume: [] };
+  }
+
+  function buildHistoryEntry(mode, data, nowIso) {
+    const source = data && typeof data === 'object' ? data : {};
+    const url = typeof source.url === 'string' ? source.url : '';
+    const rawTitle = typeof source.title === 'string' ? source.title.trim() : '';
+    const title = rawTitle || url || '(无标题)';
+    return {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+      mode,
+      title,
+      url,
+      createdAt: nowIso || new Date().toISOString(),
+      data: source,
+    };
+  }
+
+  function appendHistoryEntry(history, mode, entry) {
+    const base = history && typeof history === 'object' ? history : createEmptyHistory();
+    const current = Array.isArray(base[mode]) ? base[mode] : [];
+    const next = [entry, ...current].slice(0, HISTORY_LIMIT);
+    return { ...createEmptyHistory(), ...base, [mode]: next };
+  }
+
+  function removeHistoryEntry(history, mode, id) {
+    const base = history && typeof history === 'object' ? history : createEmptyHistory();
+    const current = Array.isArray(base[mode]) ? base[mode] : [];
+    const next = current.filter((entry) => entry && entry.id !== id);
+    return { ...createEmptyHistory(), ...base, [mode]: next };
+  }
 
   function validateMarkdownFileMeta(file, markdown) {
     const name = file && typeof file.name === 'string' ? file.name : '';
@@ -858,6 +893,11 @@
 
   return {
     RESUME_STORAGE_KEY,
+    HISTORY_STORAGE_KEY,
+    createEmptyHistory,
+    buildHistoryEntry,
+    appendHistoryEntry,
+    removeHistoryEntry,
     validateMarkdownFileMeta,
     buildResumeRecord,
     sanitizeBaseName,
