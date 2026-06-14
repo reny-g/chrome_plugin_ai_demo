@@ -97,6 +97,12 @@
       <div class="hint">Chrome 内置 API 需要 Chrome 138+ 并开启对应特性。</div>
     </div>
 
+    <div id="preset-field" class="field">
+      <label for="providerPreset">服务商</label>
+      <select id="providerPreset"></select>
+      <div class="hint" id="preset-note">选择服务商可自动填入接口地址与默认模型，仍可手动修改。</div>
+    </div>
+
     <div id="openai-fields">
       <div class="field">
         <label for="apiBase">API Base URL</label>
@@ -122,6 +128,7 @@
     </div>
   </div>
 
+  <script src="config-loader.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

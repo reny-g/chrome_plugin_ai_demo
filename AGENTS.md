@@ -35,11 +35,14 @@
 | `content.js` | 在网页上下文中提取标题、URL 和正文，不读取扩展设置，不调用 AI |
 | `resume-prompts.js` | 可测试的简历优化提示词、输出契约和提示词版本 |
 | `shared-utils.js` | 可测试的纯逻辑：JSON 解析、文件名、Markdown 分块、差异计算和报告生成 |
+| `config-loader.js` | 通用 JSON 配置加载工具，读取扩展自带配置文件 |
+| `config/providers.json` | AI 服务商预设数据（地址、默认模型），新增服务商只改此文件 |
 | `sidepanel.html` | 侧边栏结构 |
 | `sidepanel.css` | 侧边栏样式和响应式布局 |
 | `sidepanel.js` | UI 状态、简历本地管理、消息调用、结果渲染、复制和下载 |
-| `options.html/js` | API Provider、地址、Key 和模型配置 |
+| `options.html/js` | API Provider、地址、Key、模型配置，以及服务商预设选择 |
 | `tests/shared-utils.test.js` | Node.js 单元测试 |
+| `tests/providers-config.test.js` | 服务商预设配置结构校验测试 |
 | `docs/` | 中文功能规格、实现计划和设计文档 |
 
 ## 4. 架构边界
