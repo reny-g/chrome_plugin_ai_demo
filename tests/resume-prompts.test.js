@@ -17,6 +17,7 @@ function test(name, fn) {
 
 test('exports a semantic prompt version', () => {
   assert.match(RESUME_PROMPT_VERSION, /^\d+\.\d+\.\d+$/);
+  assert.strictEqual(RESUME_PROMPT_VERSION, '2.2.0');
 });
 
 test('builds system and user messages with dynamic resume inputs', () => {
@@ -45,8 +46,8 @@ test('layers security and factual constraints before output formatting', () => {
 
   const taskIndex = content.indexOf('## 1. 任务目标');
   const securityIndex = content.indexOf('## 2. 不可信输入与安全规则');
-  const factsIndex = content.indexOf('## 3. 最高优先级事实规则');
-  const outputIndex = content.indexOf('## 7. JSON 输出契约');
+  const factsIndex = content.indexOf('## 3. 事实底线');
+  const outputIndex = content.indexOf('## 8. JSON 输出契约');
 
   assert.ok(taskIndex >= 0);
   assert.ok(taskIndex < securityIndex);
@@ -57,16 +58,17 @@ test('layers security and factual constraints before output formatting', () => {
   assert.match(content, /输入包含“已截断”标记时，不得猜测缺失内容/);
 });
 
-test('defines distinct aspirational and grounded resume rules', () => {
+test('defines application-oriented aspirational and interview-grounded resume rules', () => {
   const [{ content }] = buildResumeOptimizationMessages({});
 
-  assert.match(content, /不得把团队成果改写为候选人个人成果/);
-  assert.match(content, /不得把不同公司、项目或时间段的事实合并/);
-  assert.match(content, /不得把“了解”或“接触”升级为“熟练”或“精通”/);
-  assert.match(content, /进阶版.*\[待补充：\.\.\.\]/s);
-  assert.match(content, /如实际使用过 Kubernetes，请补充应用场景、部署规模、本人职责及问题解决案例/);
-  assert.match(content, /不得先写成既定事实，再在句尾追加待确认标记/);
-  assert.match(content, /稳妥版不得使用 \[待补充：\.\.\.\] 引入新的履历陈述/);
+  assert.match(content, /投递版.*ATS/s);
+  assert.match(content, /面试版.*举证/s);
+  assert.match(content, /允许轻量包装/);
+  assert.match(content, /禁止用空话替换具体信息/);
+  assert.match(content, /深度参与、全面负责、持续优化/);
+  assert.match(content, /占位符不超过 3 处/);
+  assert.match(content, /面试版不得使用 \[待补充：\.\.\.\] 引入新的履历陈述/);
+  assert.match(content, /packaged/);
 });
 
 test('includes a compact JSON example and internal final checks', () => {
@@ -84,7 +86,7 @@ test('includes a compact JSON example and internal final checks', () => {
     assert.match(content, new RegExp(`"${field}"`));
   }
 
-  assert.match(content, /"factStatus": "rephrased"/);
+  assert.match(content, /"factStatus": "packaged"/);
   assert.match(content, /输出前在内部检查/);
   assert.match(content, /只输出最终 JSON，不输出检查过程或思考链/);
 });

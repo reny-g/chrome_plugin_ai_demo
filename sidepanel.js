@@ -30,7 +30,10 @@ const els = {
   resumeFileInput: $('resume-file-input'),
   uploadResumeBtn: $('upload-resume-btn'),
   viewResumeBtn: $('view-resume-btn'),
+  copyResumeBtn: $('copy-resume-btn'),
+  downloadResumeBtn: $('download-resume-btn'),
   clearResumeBtn: $('clear-resume-btn'),
+  resumePreviewWrap: $('resume-preview-wrap'),
   resumePreview: $('resume-preview'),
   optimizeResumeBtn: $('optimize-resume-btn'),
   resumeResult: $('resume-result-area'),
@@ -75,8 +78,19 @@ els.resumeFileInput.addEventListener('change', async () => {
 
 els.viewResumeBtn.addEventListener('click', () => {
   if (!savedResume?.markdown) return;
-  els.resumePreview.textContent = savedResume.markdown;
-  els.resumePreview.classList.toggle('hidden');
+  setResumePreviewVisible(els.resumePreviewWrap.classList.contains('hidden'));
+});
+
+els.copyResumeBtn.addEventListener('click', () => {
+  if (!savedResume?.markdown) return;
+  copyResumeMarkdown(savedResume.markdown, '简历已复制。');
+});
+
+els.downloadResumeBtn.addEventListener('click', () => {
+  if (!savedResume?.markdown) return;
+  const fileName = savedResume.fileName || 'resume.md';
+  downloadMarkdown(fileName.endsWith('.md') ? fileName : `${fileName}.md`, savedResume.markdown);
+  showStatus('简历已开始下载。', 'success');
 });
 
 els.clearResumeBtn.addEventListener('click', clearSavedResume);
@@ -240,12 +254,26 @@ function renderResumeState() {
     ? `${savedResume.fileName} · ${savedResume.length.toLocaleString()} 字符 · ${formatResumeTime(savedResume.updatedAt)}`
     : '上传一份 Markdown 简历后，可以根据当前网页 JD 生成优化版本。';
   els.viewResumeBtn.disabled = !hasResume;
+  els.copyResumeBtn.disabled = !hasResume;
+  els.downloadResumeBtn.disabled = !hasResume;
   els.clearResumeBtn.disabled = !hasResume;
   els.optimizeResumeBtn.disabled = !hasResume;
   if (!hasResume) {
-    els.resumePreview.classList.add('hidden');
+    setResumePreviewVisible(false);
     els.resumePreview.textContent = '';
   }
+}
+
+function setResumePreviewVisible(visible) {
+  if (visible && savedResume?.markdown) {
+    els.resumePreview.textContent = savedResume.markdown;
+    els.resumePreviewWrap.classList.remove('hidden');
+    els.viewResumeBtn.textContent = '收起';
+    return;
+  }
+
+  els.resumePreviewWrap.classList.add('hidden');
+  els.viewResumeBtn.textContent = '查看';
 }
 
 async function handleResumeUpload(file) {
@@ -260,7 +288,7 @@ async function handleResumeUpload(file) {
   resumeGenerationSeq += 1;
   stopResumeGenerationProgress();
   await chrome.storage.local.set({ [resumeUtils.RESUME_STORAGE_KEY]: savedResume });
-  els.resumePreview.classList.add('hidden');
+  setResumePreviewVisible(false);
   els.resumePreview.textContent = '';
   renderResumeState();
   showStatus('简历已保存到浏览器本地。', 'success');
@@ -450,31 +478,31 @@ function renderResumeOptimizationResult(data) {
     </section>
     <section class="result-block">
       <div class="section-heading">
-        <h2>进阶简历</h2>
+        <h2>投递简历</h2>
         <div class="action-row compact">
           <button id="copy-aspirational-btn" class="ghost-btn" type="button">复制</button>
           <button id="download-aspirational-btn" class="ghost-btn" type="button">下载</button>
           <button id="download-aspirational-comparison-btn" class="ghost-btn" type="button">下载对比报告</button>
         </div>
       </div>
-      <div class="markdown-body-lite">${renderMarkdown(aspirationalMarkdown || '暂无进阶简历内容。')}</div>
+      <div class="markdown-body-lite">${renderMarkdown(aspirationalMarkdown || '暂无投递简历内容。')}</div>
     </section>
     <section class="result-block">
       <div class="section-heading">
-        <h2>稳妥简历</h2>
+        <h2>面试简历</h2>
         <div class="action-row compact">
           <button id="copy-grounded-btn" class="ghost-btn" type="button">复制</button>
           <button id="download-grounded-btn" class="ghost-btn" type="button">下载</button>
           <button id="download-grounded-comparison-btn" class="ghost-btn" type="button">下载对比报告</button>
         </div>
       </div>
-      <div class="markdown-body-lite">${renderMarkdown(groundedMarkdown || '暂无稳妥简历内容。')}</div>
+      <div class="markdown-body-lite">${renderMarkdown(groundedMarkdown || '暂无面试简历内容。')}</div>
     </section>
   `;
 
-  bindResumeResultButton('copy-aspirational-btn', () => copyResumeMarkdown(aspirationalMarkdown, '进阶简历已复制。'));
+  bindResumeResultButton('copy-aspirational-btn', () => copyResumeMarkdown(aspirationalMarkdown, '投递简历已复制。'));
   bindResumeResultButton('download-aspirational-btn', () => downloadMarkdown(aspirationalName, aspirationalMarkdown));
-  bindResumeResultButton('copy-grounded-btn', () => copyResumeMarkdown(groundedMarkdown, '稳妥简历已复制。'));
+  bindResumeResultButton('copy-grounded-btn', () => copyResumeMarkdown(groundedMarkdown, '面试简历已复制。'));
   bindResumeResultButton('download-grounded-btn', () => downloadMarkdown(groundedName, groundedMarkdown));
   bindResumeResultButton('download-analysis-btn', () => downloadMarkdown(analysisName, analysisMarkdown));
   bindResumeResultButton('download-aspirational-comparison-btn', () => {

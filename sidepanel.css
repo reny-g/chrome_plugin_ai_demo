@@ -302,6 +302,12 @@ body {
   background: #f6f8fa;
   cursor: not-allowed;
 }
+.resume-preview-wrap {
+  margin-top: 10px;
+}
+.resume-preview-wrap .markdown-preview {
+  margin: 0;
+}
 .markdown-preview {
   max-height: 240px;
   margin: 10px 0 0;
@@ -316,6 +322,9 @@ body {
   font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
   font-size: 12px;
   line-height: 1.55;
+}
+.resume-preview-wrap:not(.hidden) .markdown-preview {
+  max-height: min(480px, 60vh);
 }
 
 .result-block {

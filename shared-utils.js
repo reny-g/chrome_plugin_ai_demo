@@ -154,6 +154,7 @@
       'reordered',
       'removed',
       'placeholder',
+      'packaged',
       'risk',
     ]);
     const changes = [];
@@ -584,6 +585,7 @@
       reordered: '顺序调整',
       removed: '内容删除',
       placeholder: '待用户补充',
+      packaged: '轻量包装对齐',
       risk: '需要核实',
     })[status] || '需要核实';
   }
@@ -591,7 +593,7 @@
   function buildResumeComparisonMarkdown(input) {
     const source = input || {};
     const kind = source.kind === 'grounded' ? 'grounded' : 'aspirational';
-    const versionTitle = kind === 'grounded' ? '稳妥简历' : '进阶简历';
+    const versionTitle = kind === 'grounded' ? '面试简历' : '投递简历';
     const localDiffs = compareMarkdownDocuments(
       source.originalMarkdown,
       source.optimizedMarkdown
@@ -603,6 +605,7 @@
       reordered: 0,
       removed: 0,
       placeholder: 0,
+      packaged: 0,
       risk: 0,
     };
 
@@ -659,6 +662,7 @@
       `- 顺序调整：${counts.reordered}`,
       `- 删除内容：${counts.removed}`,
       `- 待补充：${placeholders.length}`,
+      `- 轻量包装：${counts.packaged}`,
       `- 事实风险：${counts.risk}`,
       '',
       '## 逐段优化对照',

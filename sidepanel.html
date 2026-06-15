@@ -69,9 +69,13 @@
         <input id="resume-file-input" class="hidden" type="file" accept=".md,text/markdown,text/plain" />
         <button id="upload-resume-btn" class="ghost-btn" type="button">上传/替换</button>
         <button id="view-resume-btn" class="ghost-btn" type="button" disabled>查看</button>
+        <button id="copy-resume-btn" class="ghost-btn" type="button" disabled>复制</button>
+        <button id="download-resume-btn" class="ghost-btn" type="button" disabled>下载</button>
         <button id="clear-resume-btn" class="ghost-btn" type="button" disabled>清除</button>
       </div>
-      <pre id="resume-preview" class="markdown-preview hidden"></pre>
+      <div id="resume-preview-wrap" class="resume-preview-wrap hidden">
+        <pre id="resume-preview" class="markdown-preview"></pre>
+      </div>
     </section>
 
     <section class="panel-block">
