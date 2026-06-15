@@ -593,7 +593,7 @@
   function buildResumeComparisonMarkdown(input) {
     const source = input || {};
     const kind = source.kind === 'grounded' ? 'grounded' : 'aspirational';
-    const versionTitle = kind === 'grounded' ? '面试简历' : '投递简历';
+    const versionTitle = kind === 'grounded' ? '稳妥简历' : '进取简历';
     const localDiffs = compareMarkdownDocuments(
       source.originalMarkdown,
       source.optimizedMarkdown

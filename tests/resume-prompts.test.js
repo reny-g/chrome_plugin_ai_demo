@@ -17,7 +17,7 @@ function test(name, fn) {
 
 test('exports a semantic prompt version', () => {
   assert.match(RESUME_PROMPT_VERSION, /^\d+\.\d+\.\d+$/);
-  assert.strictEqual(RESUME_PROMPT_VERSION, '2.2.0');
+  assert.strictEqual(RESUME_PROMPT_VERSION, '2.3.0');
 });
 
 test('builds system and user messages with dynamic resume inputs', () => {
@@ -61,13 +61,13 @@ test('layers security and factual constraints before output formatting', () => {
 test('defines application-oriented aspirational and interview-grounded resume rules', () => {
   const [{ content }] = buildResumeOptimizationMessages({});
 
-  assert.match(content, /投递版.*ATS/s);
-  assert.match(content, /面试版.*举证/s);
+  assert.match(content, /进取版.*ATS/s);
+  assert.match(content, /稳妥版.*举证/s);
   assert.match(content, /允许轻量包装/);
   assert.match(content, /禁止用空话替换具体信息/);
   assert.match(content, /深度参与、全面负责、持续优化/);
   assert.match(content, /占位符不超过 3 处/);
-  assert.match(content, /面试版不得使用 \[待补充：\.\.\.\] 引入新的履历陈述/);
+  assert.match(content, /稳妥版不得使用 \[待补充：\.\.\.\] 引入新的履历陈述/);
   assert.match(content, /packaged/);
 });
 

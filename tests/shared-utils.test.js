@@ -980,7 +980,7 @@ test('buildResumeComparisonMarkdown includes summary comparison and risk section
     },
   });
 
-  assert.match(markdown, /^# 投递简历优化对比报告/m);
+  assert.match(markdown, /^# 进取简历优化对比报告/m);
   assert.match(markdown, /强化 RAG 能力/);
   assert.match(markdown, /#### 原文/);
   assert.match(markdown, /负责问答系统/);
@@ -1001,7 +1001,7 @@ test('buildResumeComparisonMarkdown creates a local-only grounded report', () =>
     changeSummary: null,
   });
 
-  assert.match(markdown, /^# 面试简历优化对比报告/m);
+  assert.match(markdown, /^# 稳妥简历优化对比报告/m);
   assert.match(markdown, /Redis/);
   assert.match(markdown, /未提供优化原因/);
   assert.match(markdown, /事实状态：需要核实/);
